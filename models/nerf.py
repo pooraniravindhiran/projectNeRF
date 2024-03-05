@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 
 
+
 # Define model architecture.
 # Input is of shape - (h * w * num_samples, (2 * num_posencoding_functions * 3)+(2 * num_direncoding_functions * 3))
 # Output is of shape - (h * w * num_samples, 4) where the 4-dim vector represents the RGB information and density of that respective 3D sample point.
 class NeRF(nn.Module):
-
+  
   def __init__(self, num_encoding_pos, num_encoding_dir, use_viewdirs):
     super(NeRF, self).__init__()
     self.num_layers = 8
@@ -60,3 +61,19 @@ class NeRF(nn.Module):
       x = self.out_layer(x)
 
     return x
+
+
+
+def load_checkpoint_model(checkpoint_path:str, optimizer, model_coarse, model_fine):
+  '''
+  Loading saved models from checkpoint paths
+  '''
+  checkpoint = torch.load(checkpoint_path)
+  start_iter = checkpoint['epoch']
+  optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+  # Load model
+  model_coarse.load_state_dict(checkpoint['model_coarse_state_dict'])
+  model_fine.load_state_dict(checkpoint['model_fine_state_dict'])
+
+  return start_iter, optimizer, model_coarse, model_fine

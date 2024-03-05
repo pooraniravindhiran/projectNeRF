@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from utils.utils import mse2psnr
-from utils.load_blender import load_blender_data
-from utils.load_llff import load_llff_data
-from utils.models import NeRF
+from utils.common_utils import mse2psnr
+from dataset.load_blender import load_blender_data
+from dataset.load_llff import load_llff_data
+from models.nerf import NeRF
 from utils.run_nerf import run_Nerf
 
 # TODO: device
