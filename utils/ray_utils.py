@@ -72,77 +72,6 @@ def sample_coarse_points(ray_directions: torch.Tensor, ray_origins: torch.Tensor
     sample_points = ray_origins[...,None,:] + (ray_directions[...,None,:] * depth_values[...,:,None])
     return depth_values, sample_points
 
-# Perform positional encoding on a tensor to get a high-dimensional representation enabling better capture of high frequency variations and
-# to capture the relationship between tensor values.
-# encoding is of shape (h * w * num_samples, 3 +(2 * num_encoding_functions * 3))
-def positional_encoding(tensor: torch.Tensor, num_encoding_functions: int, include_input: bool):
-    if include_input:
-        encoding = [tensor] # (h * w * num_samples, 3)
-    else:
-        encoding = []
-
-    frequency_band = torch.linspace(
-            2.0 ** 0.0,
-            2.0 ** (num_encoding_functions - 1),
-            num_encoding_functions,
-            dtype=tensor.dtype,
-            device=tensor.device,
-    )
-    for frequency in frequency_band:
-        for func in [torch.sin, torch.cos]:
-            sinusoidal_component = func(tensor * frequency)
-            encoding.append(sinusoidal_component)
-
-    return torch.cat(encoding, dim=-1)
-
-
-# Do inverse tranform sampling- https://en.wikipedia.org/wiki/Inverse_transform_sampling
-def sample_pdf(bins, weights, num_samples, sample_randomly):
-
-    # Calculate PDF. Divide by sum to get them between 0 and 1.
-    pdf = weights/weights.sum(-1).unsqueeze(-1)
-
-    # Compute CDF for all bins starting from 0 to 1
-    cdf = torch.cumsum(pdf, dim=-1)
-    cdf = torch.cat((torch.zeros_like(cdf[...,:1]), cdf), dim=-1)
-
-    # Generate samples from standard uniform distribution deterministically or randomly
-    if sample_randomly:
-        samples_uniform = torch.rand(list(cdf.shape[:-1])+[num_samples]).to(weights)
-    else:
-        samples_uniform = torch.linspace(0., 1., num_samples).to(weights)
-        samples_uniform = samples_uniform.expand(list(cdf.shape[:-1])+[num_samples])
-
-    # Find indices where cdf value is just above the sampled value
-    indices = torch.searchsorted(cdf, samples_uniform, side='right')
-
-    # Ensure they are within the range of possible indices and find the indices that are right below and above these
-    below_indices = torch.max(torch.zeros_like(indices), indices-1)
-    above_indices = torch.min((cdf.shape[-1]-1) * torch.ones_like(indices) , indices)
-
-    # Find the respective cdf values and the bin values
-    cdf_for_below_indices = torch.gather(cdf, -1, below_indices)
-    bin_for_below_indices = torch.gather(bins, -1, below_indices)
-    cdf_for_above_indices = torch.gather(cdf, -1, above_indices)
-    bin_for_above_indices = torch.gather(bins, -1, above_indices)
-
-    # Find denom and ensure numerical stability during division
-    denom = cdf_for_above_indices - cdf_for_below_indices
-    denom = torch.where(denom<1e-5, torch.ones_like(denom), denom)
-
-    # Find interpolation weights
-    # If sample_uniform is close to below index, then interpolation weight will be close to 0.
-    interpolation_weights = (samples_uniform - cdf_for_below_indices)/denom
-
-    # Perform linear interpolation
-    # if interpolation weight = 0, then below will be chosen.
-    # if interpolation weight = 1, then above bin will be chosen.
-    # if interpolation weight is between 0 and 1, linear interpolation.
-    samples_cdf = bin_for_below_indices + (interpolation_weights * (bin_for_above_indices-bin_for_below_indices))
-
-    return samples_cdf
-
-
 # Input is of shape (chunk_size x num_samples x 4)
 # Output is of shape (chunk_size x 3)
 # TODO: Add diagramatic explanation for understanding
@@ -180,4 +109,3 @@ def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torc
     disp_map = 1./torch.max(1e-10 * torch.ones_like(depth_map), depth_map / accumulated_transmittance_map)
 
     return rgb_map, disp_map, accumulated_transmittance_map, depth_map, cum_transmittance_values
-
