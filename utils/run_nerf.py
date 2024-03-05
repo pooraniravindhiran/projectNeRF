@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 from utils import get_chunks
-from utils.nerf_helpers import tf_world2ndc, get_raybundle_for_img, \
+from ray_utils import tf_world2ndc, get_raybundle_for_img, \
                         render_image_batch_from_3dinfo, sample_coarse_points, \
                         positional_encoding, sample_pdf
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required,
+def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
              near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
              include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
              num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode):
@@ -78,7 +78,7 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
     # print(rgba_coarse.shape)
     # TODO: 1. Check extra arguments - white_bckgd, noise
     # TODO: 2. shud we mutiply by ray_directions ?
-    rgb_map_coarse, disp_map_coarse, acc_map_coarse, depth_map_coarse, weights = render_image_batch_from_3dinfo(rgba_coarse , coarse_depth_values) 
+    rgb_map_coarse, disp_map_coarse, acc_map_coarse, depth_map_coarse, weights = render_image_batch_from_3dinfo(rgba_coarse , coarse_depth_values, use_white_bkgd) 
     # print(rgb_map_coarse.shape, weights.shape)
     rgb_map_coarse_list.append(rgb_map_coarse)
     # acc_map_coarse_list.append(acc_map_coarse)
@@ -120,7 +120,7 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
 
       # TODO: 1. Check extra arguments - white_bckgd, noise
       # TODO: 2. shud we mutiply by ray_directions ?
-      rgb_map_fine, disp_map_fine, acc_map_fine, depth_map_fine, _ = render_image_batch_from_3dinfo(rgba_coarse , coarse_depth_values) 
+      rgb_map_fine, disp_map_fine, acc_map_fine, depth_map_fine, _ = render_image_batch_from_3dinfo(rgba_coarse , coarse_depth_values, use_white_bkgd) 
       # print(rgb_map_coarse.shape, weights.shape)
       rgb_map_fine_list.append(rgb_map_fine)
       # acc_map_fine_list.append(acc_map_fine)

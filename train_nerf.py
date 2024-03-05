@@ -11,10 +11,10 @@ from dataset.load_dataset import load_nerf_dataset
 from models.nerf import NeRF
 from utils.run_nerf import run_Nerf
 
-# TODO: device
-# TODO: test, val images
-# TODO: lego - half_resolution, white backgnd, near, far
-# TODO: height, width crct ??
+# [COMPLETED] TODO: device 
+# [COMPLETED] TODO: test, val images
+#  TODO: lego - half_resolution, white backgnd, near, far
+# [COMPLETED] TODO: height, width crct ??
 # TODO decaying learning rate 
 
 # Reproducibility - Setting Random Seed
@@ -58,6 +58,7 @@ num_fine_samples_per_ray = 64
 include_input_in_posenc = False
 include_input_in_direnc = False
 is_ndc_required = False # set to True only for forward facing scenes
+use_white_bkgd = False # for Lego synthetic data
 use_viewdirs = True
 
 num_epochs = 20000
@@ -79,7 +80,7 @@ for epoch in tqdm(range(num_epochs)):
     training_campose = poses[index].to(device)
 
     # Call NeRF
-    rgb_coarse, rgb_fine = run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required,
+    rgb_coarse, rgb_fine = run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode='train')
@@ -124,7 +125,7 @@ for epoch in tqdm(range(num_epochs)):
         val_image_idx = np.random.choice(i_val) # i_val[0]
         val_img_target = images[val_image_idx].to(device)
         val_pose = poses[i_val]
-        rgb_val_coarse, rgb_val_fine = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,
+        rgb_val_coarse, rgb_val_fine = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode='eval')

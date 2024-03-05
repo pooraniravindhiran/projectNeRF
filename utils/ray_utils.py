@@ -75,7 +75,7 @@ def sample_coarse_points(ray_directions: torch.Tensor, ray_origins: torch.Tensor
 # Input is of shape (chunk_size x num_samples x 4)
 # Output is of shape (chunk_size x 3)
 # TODO: Add diagramatic explanation for understanding
-def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torch.Tensor):
+def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torch.Tensor, use_white_bkgd = False):
 
     # Normalize RGB values to the range 0 to 1 and since density (opacity/ amount of light absorbed/ absorption coeff) is non-negative, apply relu activation.
     rgb_values = torch.sigmoid(rgb_density[..., :3]) # (chunk_size x num_samples x 3)
@@ -104,6 +104,10 @@ def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torc
 
     # Compute cum trasnmittance for image
     accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
+
+    # White background
+    if use_white_bkgd:
+        rgb_map = rgb_map + (1. - accumulated_transmittance_map[...,None])
 
     # Disparity Map
     disp_map = 1./torch.max(1e-10 * torch.ones_like(depth_map), depth_map / accumulated_transmittance_map)
