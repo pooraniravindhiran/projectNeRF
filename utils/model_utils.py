@@ -1,3 +1,5 @@
+import torch
+
 def load_checkpoint_model(checkpoint_path:str, optimizer, model_coarse, model_fine):
   '''
   Loading saved models from checkpoint paths
