@@ -34,7 +34,7 @@ LOGDIR = '...'
 use_saved_model = False
 checkpoint_model = ''
 save_checkpoint_every = 1000
-lr = 5e-4
+lr = 5e-3
 lrate_decay = 250
 
 # Loading Dataset - LLFF and Lego 
@@ -60,6 +60,7 @@ include_input_in_direnc = False
 is_ndc_required = False # set to True only for forward facing scenes
 use_white_bkgd = False # for Lego synthetic data
 use_viewdirs = True
+update_lr_every = 5000
 
 num_epochs = 20000
 batch_size = 1 # TODO: why not have more images in batch
@@ -96,12 +97,13 @@ for epoch in tqdm(range(num_epochs)):
     optimizer.step()
 
     # Update the learning rate
-    decay_rate = 0.1
-    decay_steps = lrate_decay * 1000
-    new_lr = lr * (decay_rate ** (epoch / decay_steps))
+    if epoch % update_lr_every == 0:
+        decay_rate = 0.1
+        decay_steps = lrate_decay * 1000
+        new_lr = lr * (decay_rate ** (epoch / decay_steps))
 
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = new_lr
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = new_lr
 
     # Save model - checkpoints
     if epoch % save_checkpoint_every == 0:
