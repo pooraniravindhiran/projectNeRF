@@ -61,6 +61,7 @@ is_ndc_required = False # set to True only for forward facing scenes
 use_white_bkgd = False # for Lego synthetic data
 use_viewdirs = True
 update_lr_every = 5000
+num_random_rays = 1024 # Random Rays Sampling
 
 num_epochs = 20000
 batch_size = 1 # TODO: why not have more images in batch
@@ -84,7 +85,7 @@ for epoch in tqdm(range(num_epochs)):
     rgb_coarse, rgb_fine = run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-            num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode='train')
+            num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='train')
 
     # Compute total loss - coarse + fine
     coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
@@ -130,7 +131,7 @@ for epoch in tqdm(range(num_epochs)):
         rgb_val_coarse, rgb_val_fine = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-            num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode='eval')
+            num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
         
         coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
         fine_loss = torch.nn.functional.mse_loss(rgb_fine, target_img)
