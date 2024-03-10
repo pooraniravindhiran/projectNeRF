@@ -4,6 +4,7 @@ import torch.nn as nn
 from utils import cumprod_exclusive
 
 #TODO : device 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Compute directions and origins for rays for all pixels in the image.
 # Both will be of shape  h x w x 3
