@@ -62,7 +62,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     train_psnr_yaxis = []
     val_psnr_yaxis = []
     train_loss_yaxis = []
-    val_loss_y_axis = []
+    val_loss_yaxis = []
     val_indices_to_plot = [111,167,192]
 
     # Define the models and the optimizer
@@ -127,50 +127,75 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
         epochs_xaxis.append(epoch)
 
         # Evaluate on validation dataset
-        # if epoch % validate_every == 0:
-            # for val_index in val_indices: # TODO : check if all or just randomly one at a time
+        if epoch % validate_every == 0:
+            print(f"{epoch} Train loss: {total_loss.item()} Train PSNR : {mse2psnr(total_loss.item())}")
+            plt.plot(epochs_xaxis, train_psnr_yaxis)
+            plt.title(f"Training PSNR Plot {epoch}")
+            plt.savefig(os.path.join(LOGDIR, "train", "psnr", f"psnr_{epoch}.png"))
+            plt.plot(epochs_xaxis, train_loss_yaxis)
+            plt.title(f"Training Loss Plot {epoch}")
+            plt.savefig(os.path.join(LOGDIR, "train", "loss", f"loss_{epoch}.png"))
+
+            val_loss_list = []
+            val_psnr_list = []
+
+            for val_index in val_indices_to_plot: # TODO : check if all or just randomly one at a time
                 # Run forward pass in eval mode
 
+                val_img_target = images[val_index].to(device)
+                val_img_target = val_img_target.reshape(-1, 3)
+                val_pose = poses[val_index].to(device)
+
+                rgb_val_coarse, rgb_val_fine, val_selected_ray_indices = run_nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
+                            near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
+                            include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
+                            num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
+                val_img_target = val_img_target[val_selected_ray_indices, :]
+
+                coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_img_target)
+                fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_img_target)
+                total_loss = coarse_loss + fine_loss 
+                val_psnr = mse2psnr(total_loss.item())
+
+                val_loss_list.append(total_loss.item())
+                val_psnr_list.append(val_psnr)
+
+                print(f"{epoch} {val_index} Val loss: {total_loss.item()} Val PSNR: {val_psnr}")
+
+                rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
+                rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
+
+                # Saving Validation ground_truth, coarse and fine rendered images 
+                plt.imshow(val_img_target.detach().cpu().numpy())
+                plt.title(f"Ground truth {epoch}")
+                plt.savefig(os.path.join(LOGDIR, f"val_{val_index}", "ground_truth", f"gt_{epoch}.png"))
+
+                plt.imshow(rgb_val_coarse.detach().cpu().numpy())
+                plt.title(f"Fine RGB {epoch}")
+                plt.savefig(os.path.join(LOGDIR, f"val_{val_index}", "coarse_img", f"coarse_{epoch}.png"))
+
+                
+                plt.imshow(rgb_val_coarse.detach().cpu().numpy())
+                plt.title(f"Coarse RGB {epoch}")
+                plt.savefig(os.path.join(LOGDIR, f"val_{val_index}", "fine_img", f"fine_{epoch}.png")) 
+
                 # Check if val_index is to be plotted
-            
-            # print(f"{epoch} Train loss: {total_loss.item()} Train PSNR : {mse2psnr(total_loss.item())}")
-            # plt.plot(epochs_x, psnr_y)
-            # plt.title(f"PSNR Graph {epoch}")
-            # plt.savefig(f"{LOGDIR}psnr/psnr_{epoch}.png")
+                os.makedirs(os.path.join(LOGDIR, "val_{val_index}", "psnr",), exist_ok=True)
 
-            #         for val_image_idx in val_image_indices:
+            # Averaging the Validation loss and PSNR and Saving plots
+            val_loss_yaxis.append(sum(val_loss_list) / len(val_indices_to_plot))
+            val_psnr_yaxis.append(sum(val_loss_list) / len(val_indices_to_plot))
 
-            #             val_img_target = images[val_image_idx].to(device)
-            #             val_img_target = val_img_target.reshape(-1, 3)
-            #             val_pose = poses[val_image_idx].to(device)
+            plt.plot(epochs_xaxis, val_psnr_yaxis)
+            plt.title(f"Validation PSNR Plot {epoch}")
+            plt.savefig(os.path.join(LOGDIR, "val", "psnr", f"psnr_{epoch}.png"))
 
-            #             rgb_val_coarse, rgb_val_fine, val_random_indices = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
-            #                 near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
-            #                 include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-            #                 num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
+
+            plt.plot(epochs_xaxis, val_loss_yaxis)
+            plt.title(f"Validation Loss Plot {epoch}")
+            plt.savefig(os.path.join(LOGDIR, "val", "loss", f"loss_{epoch}.png"))
                         
-            #             val_img_target = val_img_target[val_random_indices, :]
-            #             coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_img_target)
-            #             fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_img_target)
-            #             total_loss = coarse_loss + fine_loss 
 
-            #             rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
-            #             rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
-            #             print(f"{epoch} {val_image_idx} Val loss: {total_loss.item()} Val PSNR: {mse2psnr(total_loss.item())}")
-                        
-                        
-            #             plt.imshow(rgb_val_fine.detach().cpu().numpy())
-            #             plt.title(f"Fine {epoch}")
-            #             plt.savefig(f"{LOGDIR}val/val_{val_image_idx}/fine/fine{epoch}.png")
-
-            #             plt.imshow(val_img_target.detach().cpu().numpy())
-            #             plt.title(f"Ground truth")
-            #             plt.savefig(f"{LOGDIR}val/val_{val_image_idx}/gt/gt{epoch}.png")
-
-            #             plt.imshow(rgb_val_coarse.detach().cpu().numpy())
-            #             plt.title(f"Coarse {epoch}")
-            #             plt.savefig(f"{LOGDIR}val/val_{val_image_idx}/coarse/coarse{epoch}.png")
-            #             # plt.show()  
             
 def main():
     # Load dataset
