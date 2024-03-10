@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+# TODO: requires clean up and comments
 
 class NeRF(nn.Module):
   '''

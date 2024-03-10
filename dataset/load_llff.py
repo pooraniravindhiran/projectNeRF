@@ -1,3 +1,4 @@
+# Taken from https://github.com/yenchenlin/nerf-pytorch/blob/master/load_llff.py
 import numpy as np
 import os, imageio
 

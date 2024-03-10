@@ -1,11 +1,12 @@
-import os
+# Taken from https://github.com/yenchenlin/nerf-pytorch/blob/master/load_blender.py
 import torch
+import torch.nn.functional as F
+
+import os
 import numpy as np
 import imageio 
 import json
-import torch.nn.functional as F
 import cv2
-
 
 trans_t = lambda t : torch.Tensor([
     [1,0,0,0],
@@ -86,5 +87,5 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
-    return imgs, poses, render_poses, [H, W, focal], i_split
+    return imgs, poses, [int(H), int(W), focal], i_split, render_poses
 
