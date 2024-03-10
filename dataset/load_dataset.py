@@ -33,7 +33,7 @@ def load_nerf_dataset(DATASET_TYPE, DATASET_DIR):
     elif DATASET_TYPE == 'lego':
         half_res = True
         test_skip = 1
-        white_bkgd = True
+        white_bkgd = False
         images, poses, render_poses, hwf, i_split = load_blender_data(DATASET_DIR,half_res, test_skip)
         print('Loaded lego', images.shape, render_poses.shape, hwf, DATASET_DIR)
         i_train, i_val, i_test = i_split

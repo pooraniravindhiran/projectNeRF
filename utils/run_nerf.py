@@ -33,15 +33,18 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
   ray_directions = ray_directions.view(-1, 3) # h*w, 3
 
   # Random Rays Sampling
-  if num_random_rays > 0:
+  if mode=='train' and num_random_rays > 0:
     random_indices = np.random.choice(ray_directions.shape[0], size=(num_random_rays), replace=False)
     ray_directions = ray_directions[random_indices, :] # num_rand_rays x 3
     ray_origins = ray_origins[random_indices, : ] # num_rand_rays x 3
+    if use_viewdirs:
+        view_dirs = view_dirs[random_indices, : ] 
 
-
+  # print(ray_origins.shape, ray_directions.shape)  
   near_points = near_thresh * torch.ones_like(ray_directions[...,:1])
   far_points = far_thresh * torch.ones_like(ray_directions[...,:1]) # h*w, 1 or num_random_rays, 1
   # print(ray_origins.shape, ray_directions.shape, near_points.shape, far_points.shape)
+  # print("Rays", ray_directions.dtype, ray_origins.dtype, near_points.dtype, far_points.dtype)
   concatenated_rays = torch.cat((ray_origins, ray_directions, near_points, far_points), dim=-1)
   if use_viewdirs:
     concatenated_rays = torch.cat((concatenated_rays, view_dirs), dim=-1) # h*w, 11 or or num_random_rays, 11
@@ -79,8 +82,9 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
       # print(encoded_coarse_sample_points.shape, encoded_dirs.shape)
       encoded_coarse_sample_points_batch = torch.cat((encoded_coarse_sample_points, encoded_dirs), dim=-1)
       # print(encoded_coarse_sample_points.shape)
-
+    # print(encoded_coarse_sample_points_batch.dtype)
     rgba_coarse = model_coarse(encoded_coarse_sample_points_batch.to(device))
+    # print("Coarse",rgba_coarse.dtype)
 
     rgba_coarse = rgba_coarse.reshape(list(coarse_sample_points.shape[:-1]) + [rgba_coarse.shape[-1]])
     # print(rgba_coarse.shape)
@@ -122,6 +126,7 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
       # print(encoded_fine_sample_points_batch.shape)
 
       rgba_fine = model_fine(encoded_fine_sample_points_batch.to(device))
+      # print("fine",rgba_fine.dtype)
 
       rgba_fine = rgba_fine.reshape(list(fine_sample_points.shape[:-1]) + [rgba_fine.shape[-1]])
 
@@ -129,7 +134,7 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
       # TODO: 1. Check extra arguments - white_bckgd, noise
       # TODO: 2. shud we mutiply by ray_directions ?
       rgb_map_fine, disp_map_fine, acc_map_fine, depth_map_fine, _ = render_image_batch_from_3dinfo(rgba_coarse , coarse_depth_values, use_white_bkgd) 
-      # print(rgb_map_coarse.shape, weights.shape)
+      # print("RGB Map",rgb_map_coarse.dtype, rgb_map_fine.dtype)
       rgb_map_fine_list.append(rgb_map_fine)
       # acc_map_fine_list.append(acc_map_fine)
       # disp_map_fine_list.append(disp_map_fine)
@@ -137,6 +142,6 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
   rgb_coarse_image = torch.cat(rgb_map_coarse_list, dim=0)
   rgb_fine_image = torch.cat(rgb_map_fine_list, dim=0)
 
-  return rgb_coarse_image, rgb_fine_image
+  return rgb_coarse_image, rgb_fine_image, random_indices
       
         

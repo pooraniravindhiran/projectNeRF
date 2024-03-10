@@ -33,7 +33,7 @@ LOGDIR = '/scratch/sravindh/project_nerf/logs/'
 # TODO check param values
 use_saved_model = False
 checkpoint_model = ''
-save_checkpoint_every = 1000
+save_checkpoint_every = 1
 lr = 5e-3
 lrate_decay = 250
 
@@ -52,20 +52,20 @@ poses = torch.from_numpy(poses)
 
 num_pos_encoding_functions = 6
 num_dir_encoding_functions = 6
-num_coarse_samples_per_ray = 64
-num_fine_samples_per_ray = 64
+num_coarse_samples_per_ray = 32
+num_fine_samples_per_ray = 32
 include_input_in_posenc = False
 include_input_in_direnc = False
 is_ndc_required = False # set to True only for forward facing scenes
 use_white_bkgd = False # for Lego synthetic data
 use_viewdirs = True
 update_lr_every = 0
-num_random_rays = 0 # Random Rays Sampling
+num_random_rays = 1024 # Random Rays Sampling
 
-num_epochs = 20000
+num_epochs = 1
 batch_size = 1 # TODO: why not have more images in batch
-chunk_size = 16384 # because 4096 for 1.2GB of GPU memory
-validate_every = 500
+chunk_size = 4096   #16384 # because 4096 for 1.2GB of GPU memory
+validate_every = 1
 
 # PSNR plots
 psnr_y = []
@@ -85,11 +85,15 @@ for epoch in tqdm(range(num_epochs)):
     training_campose = poses[index].to(device)
 
     # Call NeRF
-    rgb_coarse, rgb_fine = run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
+    rgb_coarse, rgb_fine, random_indices = run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='train')
-
+    target_img = target_img[random_indices, :]
+    #print(target_img.dtype, target_img.shape)
+    #print(rgb_coarse.dtype, rgb_coarse.shape)
+    #print(rgb_fine.dtype, rgb_fine.shape)
+    
     # Compute total loss - coarse + fine
     coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
     fine_loss = torch.nn.functional.mse_loss(rgb_fine, target_img)
@@ -97,7 +101,7 @@ for epoch in tqdm(range(num_epochs)):
 
     # PSNR graph
     psnr_y.append(mse2psnr(total_loss.item()))
-    epochs_x.append(epochs_x)
+    epochs_x.append(epoch)
 
     # Backpropagate
     optimizer.zero_grad()
@@ -142,14 +146,16 @@ for epoch in tqdm(range(num_epochs)):
 
         for val_image_idx in val_image_indices:
 
-            val_img_target = images[val_image_idx[val_image_idx]].to(device)
-            val_pose = poses[val_image_idx]
+            val_img_target = images[val_image_idx].to(device)
+            val_img_target = val_img_target.reshape(-1, 3)
+            val_pose = poses[val_image_idx].to(device)
 
-            rgb_val_coarse, rgb_val_fine = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
+            rgb_val_coarse, rgb_val_fine, val_random_indices = run_Nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
                 near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
                 include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
                 num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
             
+            val_img_target = val_img_target[val_random_indices, :]
             coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_img_target)
             fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_img_target)
             total_loss = coarse_loss + fine_loss 

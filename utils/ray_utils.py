@@ -29,7 +29,7 @@ def get_raybundle_for_img(height: int, width: int, focal_length: float, tf_cam2w
 
     ray_origins_world = tf_cam2world[:3,-1].expand(pixel_coors_world.shape)
 
-    return ray_origins_world, ray_directions_world
+    return ray_origins_world.double(), ray_directions_world.double()
 
 # Converts world coordinates to Normalized Device coordinates so that in forward-facing captures the scene can be bounded.
 # In world space, you will sample depth values between n and f, where f=infinity in forward-facing scenes.
