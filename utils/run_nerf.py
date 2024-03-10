@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from utils import get_chunks
 from ray_utils import tf_world2ndc, get_raybundle_for_img, \
                         render_image_batch_from_3dinfo, sample_coarse_points, \
@@ -10,7 +11,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
              near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
              include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, mode):
+             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode):
   
   if mode == 'train':
     model_fine.train()
@@ -31,12 +32,20 @@ def run_Nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
   # Flatten and concatenate
   ray_origins = ray_origins.view(-1, 3)
   ray_directions = ray_directions.view(-1, 3) # h*w, 3
+
+  # Random Rays Sampling
+  if num_random_rays > 0:
+    random_indices = np.random.choice(ray_directions.shape[0], size=(num_random_rays), replace=False)
+    ray_directions = ray_directions[random_indices, :] # num_rand_rays x 3
+    ray_origins = ray_origins[random_indices, : ] # num_rand_rays x 3
+
+
   near_points = near_thresh * torch.ones_like(ray_directions[...,:1])
-  far_points = far_thresh * torch.ones_like(ray_directions[...,:1]) # h*w, 1
+  far_points = far_thresh * torch.ones_like(ray_directions[...,:1]) # h*w, 1 or num_random_rays, 1
   # print(ray_origins.shape, ray_directions.shape, near_points.shape, far_points.shape)
   concatenated_rays = torch.cat((ray_origins, ray_directions, near_points, far_points), dim=-1)
   if use_viewdirs:
-    concatenated_rays = torch.cat((concatenated_rays, view_dirs), dim=-1) # h*w, 11
+    concatenated_rays = torch.cat((concatenated_rays, view_dirs), dim=-1) # h*w, 11 or or num_random_rays, 11
   # print(concatenated_rays.shape)
 
   # Batchify
