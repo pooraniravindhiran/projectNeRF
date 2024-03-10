@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from utils import get_chunks
-from ray_utils import tf_world2ndc, get_raybundle_for_img, \
-                        render_image_batch_from_3dinfo, sample_coarse_points
-from common_utils import positional_encoding, sample_pdf
+from utils.common_utils import get_chunks
+from utils.ray_utils import tf_world2ndc, get_raybundle_for_img, render_image_batch_from_3dinfo, sample_coarse_points
+from utils.common_utils import positional_encoding, sample_pdf
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

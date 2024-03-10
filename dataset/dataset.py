@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt 
 import numpy
 from PIL import Image
-from load_blender import load_blender_data
-from load_llff import load_llff_data
+from dataset.load_blender import load_blender_data
+from dataset.load_llff import load_llff_data
 import torch
 import numpy as np
 

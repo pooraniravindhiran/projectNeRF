@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from utils import cumprod_exclusive
+from utils.common_utils import cumprod_exclusive
 
 #TODO : device 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
