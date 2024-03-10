@@ -30,6 +30,7 @@ DATASET_DIR = '/scratch/sravindh/nerf_dataset/lego/'
 DATASET_TYPE = 'lego'
 LOGDIR = '/scratch/sravindh/project_nerf/logs/'
 
+
 def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh):
     # Define ray related params
     num_pos_encoding_functions = 6
@@ -64,6 +65,17 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     train_loss_yaxis = []
     val_loss_yaxis = []
     val_indices_to_plot = [111,167,192]
+
+    # Creating directories if not already created
+    os.makedirs(os.path.join(LOGDIR, "train", "psnr"))
+    os.makedirs(os.path.join(LOGDIR, "train", "loss"))
+    os.makedirs(os.path.join(LOGDIR, "val", "loss"))
+    os.makedirs(os.path.join(LOGDIR, "train", "psnr"))
+    
+    for val_idx in val_indices_to_plot:
+        os.makedirs(os.path.join(LOGDIR, "val", f"val_{val_idx}", "ground_truth"))
+        os.makedirs(os.path.join(LOGDIR, "val", f"val_{val_idx}", "coarse_img"))
+        os.makedirs(os.path.join(LOGDIR, "val", f"val_{val_idx}", "fine_img"))
 
     # Define the models and the optimizer
     model_coarse = NeRF(num_pos_encoding_functions, num_dir_encoding_functions, use_viewdirs).to(device)
@@ -198,6 +210,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
 
             
 def main():
+
     # Load dataset
     images, poses, hwf_list, train_indices, val_indices, test_indices, \
     sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
