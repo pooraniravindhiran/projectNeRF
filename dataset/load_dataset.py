@@ -8,7 +8,7 @@ def load_nerf_dataset(DATASET_TYPE, DATASET_DIR):
     """
     This function loads synthetic dataset - lego and real world - LLFF dataset
     """
-    if DATASET_TYPE == 'lego':
+    if DATASET_TYPE == 'llff':
         llffhold = 8
         images, poses, bds, render_poses, i_test = load_llff_data(DATASET_DIR, factor=8,
                                                                 recenter=True, bd_factor=.75,
