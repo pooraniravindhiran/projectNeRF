@@ -26,9 +26,9 @@ np.random.seed(seed)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_DIR = '...'
+DATASET_DIR = '/scratch/sravindh/nerf_dataset/lego/'
 DATASET_TYPE = 'lego'
-LOGDIR = '...'
+LOGDIR = '/scratch/sravindh/project_nerf/logs/'
 
 # TODO check param values
 use_saved_model = False
