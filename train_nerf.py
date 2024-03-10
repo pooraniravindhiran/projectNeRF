@@ -98,13 +98,14 @@ for epoch in tqdm(range(num_epochs)):
     optimizer.step()
 
     # Update the learning rate
-    if epoch % update_lr_every == 0:
-        decay_rate = 0.1
-        decay_steps = lrate_decay * 1000
-        new_lr = lr * (decay_rate ** (epoch / decay_steps))
+    if update_lr_every != 0:
+        if epoch % update_lr_every == 0:
+            decay_rate = 0.1
+            decay_steps = lrate_decay * 1000
+            new_lr = lr * (decay_rate ** (epoch / decay_steps))
 
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = new_lr
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = new_lr
 
     # Save model - checkpoints
     if epoch % save_checkpoint_every == 0:
