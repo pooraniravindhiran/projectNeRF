@@ -36,6 +36,7 @@ def run_nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc
 	ray_directions = ray_directions.view(-1, 3) # h*w, 3
 
 	# Randomly sample rays for OOM error
+	random_indices = np.arange(ray_origins.shape[0])
 	if mode=='train' and num_random_rays > 0:
 		random_indices = np.random.choice(ray_directions.shape[0], size=(num_random_rays), replace=False)
 		ray_directions = ray_directions[random_indices, :] # num_rand_rays x 3

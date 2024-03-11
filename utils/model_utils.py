@@ -39,7 +39,7 @@ def get_radiance_field_per_chunk(sample_points, model, num_pos_encoding_function
 	chunks = get_chunks(encoded_sample_points_batch, chunk_size)
 	rgba_batch = []
 	for chunk in chunks:
-		rgba_batch.append(model(encoded_sample_points_batch.to(device)))
+		rgba_batch.append(model(chunk.to(device)))
 	rgba_batch = torch.cat(rgba_batch, dim=0)
 	rgba_batch = rgba_batch.reshape(list(sample_points.shape[:-1]) + [rgba_batch.shape[-1]])
 	return rgba_batch

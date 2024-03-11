@@ -97,7 +97,8 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
                 near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
                 include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
                 num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='train')
-        target_img = target_img[selected_ray_indices, :]
+        if num_random_rays>0:
+            target_img = target_img[selected_ray_indices, :]
         
         # Compute loss
         coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
