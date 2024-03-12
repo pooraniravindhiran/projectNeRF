@@ -13,6 +13,7 @@ from utils.run_nerf import run_nerf
 from utils.common_utils import mse2psnr
 import shutil
 
+from utils.model_utils import load_checkpoint_model
 # TODO: val set
 # TODO: height, width crct ??
 # TODO: decaying learning rate 
@@ -50,7 +51,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     batch_size = 1 # TODO: why not have more images in batch
     chunk_size = 4096 # 16384 # because 4096 for 1.2GB of GPU memory
     validate_every = 1000
-    save_checkpoint_every = 5000
+    save_checkpoint_every = 2000
     checkpoint_model = ''
     lr = 5e-3
     # lrate_decay = 250
@@ -149,13 +150,13 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
                 os.path.join(LOGDIR, "models","checkpoint" + str(epoch).zfill(5) + ".tar"),
             )
         
-        # Add values for PSNR graph
-        train_loss_yaxis.append(total_loss.item())
-        train_psnr_yaxis.append(mse2psnr(total_loss.item()))
-        epochs_xaxis.append(epoch)
 
         # Evaluate on validation dataset
         if epoch % validate_every == 0:
+            # Add values for PSNR graph
+            train_loss_yaxis.append(total_loss.item())
+            train_psnr_yaxis.append(mse2psnr(total_loss.item()))
+            epochs_xaxis.append(epoch)
             print(f"{epoch} Train loss: {total_loss.item()} Train PSNR : {mse2psnr(total_loss.item())}")
             plt.plot(epochs_xaxis, train_psnr_yaxis)
             plt.title(f"Training PSNR Plot {epoch}")
@@ -209,7 +210,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
 
             # Averaging the Validation loss and PSNR and Saving plots
             val_loss_yaxis.append(sum(val_loss_list) / len(val_indices_to_plot))
-            val_psnr_yaxis.append(sum(val_loss_list) / len(val_indices_to_plot))
+            val_psnr_yaxis.append(sum(val_psnr_list) / len(val_indices_to_plot))
 
             plt.plot(epochs_xaxis, val_psnr_yaxis)
             plt.title(f"Validation PSNR Plot {epoch}")
@@ -221,7 +222,26 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
             plt.savefig(os.path.join(LOGDIR, "val", "loss", f"loss_{epoch}.png"))
             plt.clf()
                         
-
+    checkpoint_dict = {
+            'epoch': epoch, 
+            'model_coarse_state_dict': model_coarse.state_dict(), 
+            "model_fine_state_dict": model_fine.state_dict(), 
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": total_loss.item()
+    }
+    torch.save(
+                checkpoint_dict,
+                os.path.join(LOGDIR, "models","final_model_" + str(epoch) + ".tar"),
+    )
+    
+    # with torch.no_grad():
+    #     op, model_coarse, model_fine = load_checkpoint_model("/scratch/sravindh/project_nerf/logs/models/final_model_2.tar", optimizer, model_coarse, model_fine)
+    #     c, f, _ = run_nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
+    #                             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
+    #                             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
+    #                             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
+    #     print(c.reshape(h,3).shape)
+    #     print("Eval")
             
 def main():
 

@@ -20,7 +20,7 @@ def load_checkpoint_model(checkpoint_path:str, optimizer, model_coarse, model_fi
   model_coarse.load_state_dict(checkpoint['model_coarse_state_dict'])
   model_fine.load_state_dict(checkpoint['model_fine_state_dict'])
 
-  return start_iter, optimizer, model_coarse, model_fine
+  return optimizer, model_coarse, model_fine
 
 def get_radiance_field_per_chunk(sample_points, model, num_pos_encoding_functions, include_input_in_posenc, use_viewdirs,
 								 viewdirs_batch, num_dir_encoding_functions, include_input_in_direnc, chunk_size):
