@@ -19,23 +19,23 @@ class NeRF(nn.Module):
     self.input_dir_dim = 2 * num_encoding_dir * 3
 
     self.fc_layers = nn.ModuleList()
-    self.fc_layers.append(nn.Linear(self.input_pos_dim, self.filter_size,dtype=torch.float64))
+    self.fc_layers.append(nn.Linear(self.input_pos_dim, self.filter_size,dtype=torch.float32))
     for layer in range(self.num_layers-1):
       # Skip - Adding residual connection
       if layer == self.skip_layer-1:
-        self.fc_layers.append(nn.Linear(self.input_pos_dim + self.filter_size, self.filter_size,dtype=torch.float64))
+        self.fc_layers.append(nn.Linear(self.input_pos_dim + self.filter_size, self.filter_size,dtype=torch.float32))
       else:
-        self.fc_layers.append(nn.Linear(self.filter_size, self.filter_size,dtype=torch.float64))
+        self.fc_layers.append(nn.Linear(self.filter_size, self.filter_size,dtype=torch.float32))
 
     if self.use_viewdirs:
-      self.alpha_layer = nn.Linear(self.filter_size, 1,dtype=torch.float64)
+      self.alpha_layer = nn.Linear(self.filter_size, 1,dtype=torch.float32)
 
-      self.fc_dir1_layer = nn.Linear(self.filter_size, self.filter_size,dtype=torch.float64)
-      self.fc_dir2_layer = nn.Linear(self.input_dir_dim + self.filter_size, self.filter_size//2,dtype=torch.float64)
+      self.fc_dir1_layer = nn.Linear(self.filter_size, self.filter_size,dtype=torch.float32)
+      self.fc_dir2_layer = nn.Linear(self.input_dir_dim + self.filter_size, self.filter_size//2,dtype=torch.float32)
       # self.rgb_layer = nn.Linear(filter_size//2, filter_size//2)
-      self.rgb_layer = nn.Linear(self.filter_size//2, self.output_size-1,dtype=torch.float64)
+      self.rgb_layer = nn.Linear(self.filter_size//2, self.output_size-1,dtype=torch.float32)
     else:
-      self.out_layer = nn.Linear(self.filter_size, self.output_size,dtype=torch.float64)
+      self.out_layer = nn.Linear(self.filter_size, self.output_size,dtype=torch.float32)
 
   def forward(self, x):
     # TODO: isn't input 6D? why are they saying 5D?

@@ -9,7 +9,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Compute directions and origins for rays for all pixels in the image.
 # Both will be of shape  h x w x 3
 def get_raybundle_for_img(height: int, width: int, focal_length: float, tf_cam2world: torch.Tensor):
-
     # Create a meshgrid for the image pixels
     pixel_coors_along_w = torch.arange(width)
     pixel_coors_along_h = torch.arange(height)

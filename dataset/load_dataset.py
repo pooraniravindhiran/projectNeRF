@@ -69,7 +69,7 @@ def load_tinynerf_dataset():
     near_thresh = 2.0
     far_thresh = 6.0
 
-    data = np.load('tiny_nerf_data.npz')
+    data = np.load('/scratch/sravindh/nerf_dataset/tiny_nerf_data.npz')
     images = data['images']
     poses = data['poses']
     focal_length = data['focal']
