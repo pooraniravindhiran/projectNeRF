@@ -44,7 +44,10 @@ def positional_encoding(tensor: torch.Tensor, num_encoding_functions: int, inclu
 
 # Do inverse tranform sampling- https://en.wikipedia.org/wiki/Inverse_transform_sampling
 def sample_pdf(bins, weights, num_samples, sample_randomly):
-
+    
+    # To prevent nans in weights
+    weights = weights + 1e-5
+    
     # Calculate PDF. Divide by sum to get them between 0 and 1.
     pdf = weights/weights.sum(-1).unsqueeze(-1)
 

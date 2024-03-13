@@ -43,17 +43,16 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     include_input_in_posenc = False
     include_input_in_direnc = False
     is_ndc_required = False # set to True only for forward facing scenes
-    num_random_rays = 0 # Random Rays Sampling
+    num_random_rays = 1024*8 # Random Rays Sampling
     use_viewdirs = True
     height, width, focal_length = hwf_list
-    focal_length = torch.from_numpy(focal_length).to(device)
 
     # Define NN model related params
     num_epochs = 1000
     batch_size = 1 # TODO: why not have more images in batch
-    chunk_size = 4096 # 16384 # because 4096 for 1.2GB of GPU memory
-    validate_every = 20
-    save_checkpoint_every = 10000
+    chunk_size =  16384 # because 4096 for 1.2GB of GPU memory
+    validate_every = 100
+    save_checkpoint_every = 2000
     checkpoint_model = ''
     lr = 5e-3
     # lrate_decay = 250
@@ -68,7 +67,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     val_psnr_yaxis = []
     train_loss_yaxis = []
     val_loss_yaxis = []
-    val_indices_to_plot = [101] #,167,192]
+    val_indices_to_plot = [111] #,167,192]
     
 
     # Creating directories if not already created
@@ -88,11 +87,11 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
         os.makedirs(os.path.join(LOGDIR, "val",name, "fine_img"), exist_ok=True)
     
     # Saving Validation ground_truth, coarse and fine rendered images 
-    val_img_target = images[101].to(device)
+    val_img_target = images[111].to(device)
     plt.figure()
     plt.imshow(val_img_target.detach().cpu().numpy())
     plt.title(f"Ground truth")
-    plt.savefig(os.path.join(LOGDIR, "val", f"val_101", "ground_truth", f"gt.png"))
+    plt.savefig(os.path.join(LOGDIR, "val", f"val_111", "ground_truth", f"gt.png"))
     plt.clf()
 
     # Define the models and the optimizer
@@ -249,14 +248,14 @@ def main():
 
 
     # Load dataset
-    # images, poses, hwf_list, train_indices, val_indices, test_indices, \
-    # sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
+    images, poses, hwf_list, train_indices, val_indices, test_indices, \
+    sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
     # images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh= load_tinynerf_dataset()
     images = torch.from_numpy(images)
     poses = torch.from_numpy(poses)
 
     # Call the train or inference function # TODO: add appropriate classes
-    # train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh)    
+    train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh)    
 
     # TODO: add inference        
 
