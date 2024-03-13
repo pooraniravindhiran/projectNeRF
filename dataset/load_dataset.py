@@ -1,3 +1,5 @@
+import torch
+
 import numpy as np
 
 from dataset.load_blender import load_blender_data
@@ -61,3 +63,21 @@ def load_nerf_dataset(DATASET_TYPE, DATASET_DIR):
     
     else:
         print('Unknown dataset type. Only lego and llff supported now.')
+
+def load_tinynerf_dataset():
+    # Define near and far plane depth values
+    near_thresh = 2.0
+    far_thresh = 6.0
+
+    data = np.load('tiny_nerf_data.npz')
+    images = data['images']
+    poses = data['poses']
+    focal_length = data['focal']
+    height, width = images.shape[1:3]
+    hwf_list = [height, width, focal_length]
+
+    # Get indices for data split
+    val_indices = [101]
+    train_indices = [i for i in range(101)]
+    
+    return images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from dataset.load_dataset import load_nerf_dataset
+from dataset.load_dataset import load_tinynerf_dataset
 from models.nerf import NeRF
 from utils.run_nerf import run_nerf
 from utils.common_utils import mse2psnr
@@ -247,8 +248,9 @@ def main():
 
 
     # Load dataset
-    images, poses, hwf_list, train_indices, val_indices, test_indices, \
-    sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
+    # images, poses, hwf_list, train_indices, val_indices, test_indices, \
+    # sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
+    images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh= load_tinynerf_dataset()
     images = torch.from_numpy(images)
     poses = torch.from_numpy(poses)
 
