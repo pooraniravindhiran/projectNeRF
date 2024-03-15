@@ -48,12 +48,12 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     height, width, focal_length = hwf_list
 
     # Define NN model related params
-    num_epochs = 1000
+    num_epochs = 50000
     batch_size = 1 # TODO: why not have more images in batch
     chunk_size =  16384 # because 4096 for 1.2GB of GPU memory
-    validate_every = 100
+    validate_every = 1000
     save_checkpoint_every = 2000
-    checkpoint_model = ''
+    checkpoint_model_path = '/scratch/sravindh/project_nerf/checkpoints/checkpoint30000.tar' # checkpoint NeRF model path
     lr = 5e-3
     # lrate_decay = 250
     # update_lr_every = 0
@@ -99,9 +99,14 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     model_fine = NeRF(num_pos_encoding_functions, num_dir_encoding_functions, use_viewdirs).to(device)
     optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=lr)
     
+    if checkpoint_model_path is not None:
+        print("Loading pretrained model from checkpoint path :",checkpoint_model_path)
+        optimizer, model_coarse, model_fine = load_checkpoint_model(checkpoint_model_path, optimizer, model_coarse, model_fine)
+
+
     # Iterate through epochs
     print("Training has begun.\n")
-    for epoch in tqdm(range(num_epochs)):
+    for epoch in tqdm(range(1, num_epochs+1)):
 
         # Pick one random sample for training
         index = np.random.choice(train_indices) # TODO: check if it is without replacement
@@ -191,7 +196,7 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
                     val_loss_list.append(total_loss.item())
                     val_psnr_list.append(val_psnr)
     
-                    print(f"{epoch} {val_index} Val loss: {total_loss.item()} Val PSNR: {val_psnr}")
+                    print(f"{val_index} Val loss: {total_loss.item()} Val PSNR: {val_psnr}")
     
                     rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
                     rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
@@ -232,9 +237,10 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
     }
     torch.save(
                 checkpoint_dict,
-                os.path.join(LOGDIR, "models","final_model_" + str(epoch) + ".tar"),
+                os.path.join(LOGDIR, "models","checkpoint" + str(epoch).zfill(5) + ".tar"),
     )
     
+
     # with torch.no_grad():
     #     op, model_coarse, model_fine = load_checkpoint_model("/scratch/sravindh/project_nerf/logs/models/final_model_2.tar", optimizer, model_coarse, model_fine)
     #     c, f, _ = run_nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,

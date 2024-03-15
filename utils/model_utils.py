@@ -5,7 +5,7 @@ from utils.common_utils import get_chunks
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_checkpoint_model(checkpoint_path:str, optimizer, model_coarse, model_fine):
+def load_checkpoint_model(checkpoint_path, optimizer, model_coarse, model_fine):
   '''
   Loading saved models from checkpoint paths
 
