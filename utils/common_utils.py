@@ -1,49 +1,104 @@
 import torch
-import math
+import torchvision
 
-def get_chunks(tensor: torch.Tensor, chunk_size: int):
-  chunks = [tensor[i:i+chunk_size] for i in range(0, tensor.shape[0], chunk_size)]
-  return chunks
+import math
+import yaml
+import os
+import numpy as np
+from easydict import EasyDict
+
+def read_config(filename: str):
+    """
+    Read a YAMl file and return its content as a dictionary like object.
+    
+    Args:
+        filename (str): The path to the YAML file.
+    
+    Returns: 
+        config (easydict): The content of the YAMl file as a dictionary object.
+    
+    Raises:
+        FileNotFoundError: If the specified YAML file does not exist.
+        RunTimeError: If an error occurs while reading the YAML file.
+    """
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"File {filename} not found.")
+    try:
+        with open(filename, 'r') as f:
+            config = EasyDict(yaml.safe_load(f))
+    except (IOError, OSError, yaml.YAMLError) as e:
+        raise RuntimeError(f"Error reading the config YAML file: {e}")
+    return config
+
+def cast_to_image(tensor: torch.Tensor):
+    """
+    Converts a PyTorch tensor to PIL image suitable for visualization in TensorBoard.
+
+    Args:
+        tensor (torch.Tensor): Input tensor representing an image with shape (H, W, 3).
+
+    Returns:
+        numpy.ndarray: Numpy array representing the image with shape (3, H, W), suitable for TensorBoard visualization.
+    """
+    # Input tensor is (H, W, 3). Convert to (3, H, W).
+    tensor = tensor.permute(2, 0, 1)
+
+    img = np.array(torchvision.transforms.ToPILImage()(tensor.detach().cpu()))
+    img = np.moveaxis(img, [-1], [0])
+
+    return img
+
+# def get_chunks(tensor: torch.Tensor, chunk_size: int):
+#   chunks = [tensor[i:i+chunk_size] for i in range(0, tensor.shape[0], chunk_size)]
+#   return chunks
 
 def mse2psnr(mse):
-  return -10. * math.log10(mse)
+    """
+    Convert Mean Squared Error (MSE) to Peak Signal-to-Noise Ratio (PSNR) in decibels.
 
-def cumprod_exclusive(tensor: torch.Tensor):
-  # for input (a,b,c), cumprod_inclusive is (a, a*b, a*b*c)
-  cumprod_inclusive = torch.cumprod(tensor, dim=-1)
+    Args:
+        mse (float): Mean Squared Error (MSE) value.
 
-  # for input (a,b,c), cumprod_exclusive is (1, a, a*b)
-  cumprod_exclusive = torch.roll(cumprod_inclusive, 1, dims=-1) # (a*b*c, a, a*b)
-  cumprod_exclusive[..., 0] = 1.
+    Returns:
+        float: Peak Signal-to-Noise Ratio (PSNR) value in decibels.
+    """
+    return -10. * math.log10(mse)
 
-  return cumprod_exclusive
+# def cumprod_exclusive(tensor: torch.Tensor):
+#   # for input (a,b,c), cumprod_inclusive is (a, a*b, a*b*c)
+#   cumprod_inclusive = torch.cumprod(tensor, dim=-1)
 
-# Perform positional encoding on a tensor to get a high-dimensional representation enabling better capture of high frequency variations and
-# to capture the relationship between tensor values.
-# encoding is of shape (h * w * num_samples, 3 +(2 * num_encoding_functions * 3))
-def positional_encoding(tensor: torch.Tensor, num_encoding_functions: int, include_input: bool):
-    if include_input:
-        encoding = [tensor] # (h * w * num_samples, 3)
-    else:
-        encoding = []
+#   # for input (a,b,c), cumprod_exclusive is (1, a, a*b)
+#   cumprod_exclusive = torch.roll(cumprod_inclusive, 1, dims=-1) # (a*b*c, a, a*b)
+#   cumprod_exclusive[..., 0] = 1.
 
-    frequency_band = torch.linspace(
-            2.0 ** 0.0,
-            2.0 ** (num_encoding_functions - 1),
-            num_encoding_functions,
-            dtype=tensor.dtype,
-            device=tensor.device,
-    )
-    for frequency in frequency_band:
-        for func in [torch.sin, torch.cos]:
-            sinusoidal_component = func(tensor * frequency)
-            encoding.append(sinusoidal_component)
+#   return cumprod_exclusive
 
-    return torch.cat(encoding, dim=-1)
+# # Perform positional encoding on a tensor to get a high-dimensional representation enabling better capture of high frequency variations and
+# # to capture the relationship between tensor values.
+# # encoding is of shape (h * w * num_samples, 3 +(2 * num_encoding_functions * 3))
+# def positional_encoding(tensor: torch.Tensor, num_encoding_functions: int, include_input: bool):
+#     if include_input:
+#         encoding = [tensor] # (h * w * num_samples, 3)
+#     else:
+#         encoding = []
 
+#     frequency_band = torch.linspace(
+#             2.0 ** 0.0,
+#             2.0 ** (num_encoding_functions - 1),
+#             num_encoding_functions,
+#             dtype=tensor.dtype,
+#             device=tensor.device,
+#     )
+#     for frequency in frequency_band:
+#         for func in [torch.sin, torch.cos]:
+#             sinusoidal_component = func(tensor * frequency)
+#             encoding.append(sinusoidal_component)
 
-# Do inverse tranform sampling- https://en.wikipedia.org/wiki/Inverse_transform_sampling
-def sample_pdf(bins, weights, num_samples, sample_randomly):
+#     return torch.cat(encoding, dim=-1)
+
+# # Do inverse tranform sampling- https://en.wikipedia.org/wiki/Inverse_transform_sampling
+# def sample_pdf(bins, weights, num_samples, sample_randomly):
     
     # To prevent nans in weights
     weights = weights + 1e-5

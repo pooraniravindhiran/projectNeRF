@@ -1,138 +1,96 @@
-# Libraries
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 import os
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import logging
 
+from utils.common_utils import * 
 from dataset.load_dataset import load_nerf_dataset
-from dataset.load_dataset import load_tinynerf_dataset
 from models.nerf import NeRF
 from utils.run_nerf import run_nerf
-from utils.common_utils import mse2psnr
-import shutil
+from utils.model_utils import load_model_checkpoint
 
-from utils.model_utils import load_checkpoint_model
 # TODO: val set
 # TODO: height, width crct ??
 # TODO: decaying learning rate 
 # TODO: check param values
 
-# Setting random seed for reproducibility
+# Set random seed for reproducibility
 seed = 42
 torch.manual_seed(seed)
 np.random.seed(seed)
 
-# Setting device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
+               train_indices: list, val_indices: list, near_thresh: float, far_thresh: float):
+    """
+    Train a NeRF model using the specified images, camera poses, and other parameters.
 
-# Setting global variables
-DATASET_DIR = '/scratch/sravindh/nerf_dataset/lego/'
-DATASET_TYPE = 'lego'
-LOGDIR = '/scratch/sravindh/project_nerf/logs/'
+    Args:
+        cfg: dictionary like object containing user config
+        images (torch.Tensor): Tensor containing input images. Shape (num_images, height, width, 4).
+        poses (torch.Tensor): Tensor containing camera poses corresponding to each image. Shape (num_images, 4, 4).
+        hwf_list (list): List containing the height, width and focal length.
+        train_indices (list): List of indices indicating the images used for training.
+        val_indices (list): List of indices indicating the images used for validation.
+        near_thresh (float): Near threshold for ray termination.
+        far_thresh (float): Far threshold for ray termination.
 
-
-def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh):
-    # Define ray related params
-    num_pos_encoding_functions = 6
-    num_dir_encoding_functions = 6
-    num_coarse_samples_per_ray = 64
-    num_fine_samples_per_ray = 64
-    include_input_in_posenc = False
-    include_input_in_direnc = False
-    is_ndc_required = False # set to True only for forward facing scenes
-    num_random_rays = 1024*8 # Random Rays Sampling
-    use_viewdirs = True
+    Returns:
+        None
+    """
     height, width, focal_length = hwf_list
 
-    # Define NN model related params
-    num_epochs = 50000
-    batch_size = 1 # TODO: why not have more images in batch
-    chunk_size =  16384 # because 4096 for 1.2GB of GPU memory
-    validate_every = 1000
-    save_checkpoint_every = 2000
-    checkpoint_model_path = '/scratch/sravindh/project_nerf/checkpoints/checkpoint30000.tar' # checkpoint NeRF model path
-    lr = 5e-3
-    # lrate_decay = 250
-    # update_lr_every = 0
+    # Initialize summary writer
+    writer = SummaryWriter(log_dir = os.path.join(cfg.result.logdir, "tf_writer"))
+    shutil.mkdir(os.path.join(cfg.result.logdir, "model_checkpoints"), parents=True, exist_ok=True)
 
-    # Define data related params
-    use_white_bkgd = False # for Lego synthetic data # TODO: check this
-
-    # Define plotting related params
-    epochs_xaxis = []
-    train_psnr_yaxis = []
-    val_psnr_yaxis = []
-    train_loss_yaxis = []
-    val_loss_yaxis = []
-    val_indices_to_plot = [111] #,167,192]
-    
-
-    # Creating directories if not already created
-    if os.path.exists(LOGDIR):
-        shutil.rmtree(LOGDIR)
-    
-    os.makedirs(os.path.join(LOGDIR, "train", "psnr"), exist_ok=True)
-    os.makedirs(os.path.join(LOGDIR, "train", "loss"), exist_ok=True)
-    os.makedirs(os.path.join(LOGDIR, "val", "loss"), exist_ok=True)
-    os.makedirs(os.path.join(LOGDIR, "val", "psnr"), exist_ok=True)
-    os.makedirs(os.path.join(LOGDIR, "models"), exist_ok=True)
-    
-    for val_idx in val_indices_to_plot:
-        name = f"val_{val_idx}"
-        os.makedirs(os.path.join(LOGDIR, "val",name, "ground_truth"), exist_ok=True)
-        os.makedirs(os.path.join(LOGDIR, "val",name, "coarse_img"), exist_ok=True)
-        os.makedirs(os.path.join(LOGDIR, "val",name, "fine_img"), exist_ok=True)
-    
-    # Saving Validation ground_truth, coarse and fine rendered images 
-    val_img_target = images[111].to(device)
-    plt.figure()
-    plt.imshow(val_img_target.detach().cpu().numpy())
-    plt.title(f"Ground truth")
-    plt.savefig(os.path.join(LOGDIR, "val", f"val_111", "ground_truth", f"gt.png"))
-    plt.clf()
+    # Define validation data
+    val_index = 111
+    val_target_img = images[val_index].to(cfg.device)
+    writer.add_image("valimages/ground_truth", cast_to_image(val_target_img), 0) 
 
     # Define the models and the optimizer
-    model_coarse = NeRF(num_pos_encoding_functions, num_dir_encoding_functions, use_viewdirs).to(device)
-    model_fine = NeRF(num_pos_encoding_functions, num_dir_encoding_functions, use_viewdirs).to(device)
-    optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=lr)
+    model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
+    model_fine = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
+    optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=cfg.train.lr)
+
+    # Check if there is a pretrained checkpoint that is available
+    if cfg.train.checkpoint_path:
+        cfg.result.logger.info(f"Loading pretrained model from checkpoint path: {cfg.train.checkpoint_path}")
+        start_epoch, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
     
-    if checkpoint_model_path is not None:
-        print("Loading pretrained model from checkpoint path :",checkpoint_model_path)
-        optimizer, model_coarse, model_fine = load_checkpoint_model(checkpoint_model_path, optimizer, model_coarse, model_fine)
-
-
     # Iterate through epochs
-    print("Training has begun.\n")
-    for epoch in tqdm(range(1, num_epochs+1)):
+    cfg.result.logger.info(f"Initiating model training.")
+    for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs)):
 
         # Pick one random sample for training
         index = np.random.choice(train_indices) # TODO: check if it is without replacement
-        target_img = images[index].to(device)
+        target_img = images[index].to(cfg.device)
         target_img = target_img.reshape(-1, 3)
-        training_campose = poses[index].to(device)
+        training_campose = poses[index].to(cfg.device)
 
         # Run forward pass
-        rgb_coarse, rgb_fine, selected_ray_indices = run_nerf(height, width, focal_length, training_campose, use_viewdirs, is_ndc_required, use_white_bkgd,
-                near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
-                include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-                num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='train')
-        if num_random_rays>0:
+        rgb_coarse, rgb_fine, selected_ray_indices = run_nerf(height, width, focal_length, training_campose,
+                near_thresh, far_thresh, model_coarse, model_fine, cfg, mode='train')
+        if cfg.model.num_selected_rays > 0:
             target_img = target_img[selected_ray_indices, :]
         
         # Compute loss
         coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
         fine_loss = torch.nn.functional.mse_loss(rgb_fine, target_img)
-        total_loss = coarse_loss + fine_loss #TODO - why summing it ?
+        total_loss = coarse_loss + fine_loss
 
         # Backpropagate
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
 
-        # # Update the learning rate
+        # Update the learning rate
         # if update_lr_every != 0:
         #     if epoch % update_lr_every == 0:
         #         decay_rate = 0.1
@@ -142,128 +100,81 @@ def train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh,
         #         for param_group in optimizer.param_groups:
         #             param_group['lr'] = new_lr
 
-        # Save model at checkpoints
-        if epoch % save_checkpoint_every == 0:
+        # Save model checkpoint
+        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == cfg.train.num_epochs):
             checkpoint_dict = {
-            'epoch': epoch, 
-            'model_coarse_state_dict': model_coarse.state_dict(), 
-            "model_fine_state_dict": model_fine.state_dict(), 
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": total_loss.item()
+                'epoch': epoch, 
+                'model_coarse_state_dict': model_coarse.state_dict(), 
+                "model_fine_state_dict": model_fine.state_dict(), 
+                "optimizer_state_dict": optimizer.state_dict(),
+                "loss": total_loss.item()
             }
             torch.save(
                 checkpoint_dict,
-                os.path.join(LOGDIR, "models","checkpoint" + str(epoch).zfill(5) + ".tar"),
+                os.path.join(cfg.result.logdir, "model_checkpoints", "checkpoint"+str(epoch).zfill(6)+".tar"),
             )
         
+        # Save training loss and psnr values to writer
+        writer.add_scalar('train/loss', total_loss.item(), epoch)
+        writer.add_scalar('train/psnr', mse2psnr(total_loss.item()), epoch)
 
-        # Evaluate on validation dataset
-        if epoch % validate_every == 0:
-            # Add values for PSNR graph
-            train_loss_yaxis.append(total_loss.item())
-            train_psnr_yaxis.append(mse2psnr(total_loss.item()))
-            epochs_xaxis.append(epoch)
-            print(f"{epoch} Train loss: {total_loss.item()} Train PSNR : {mse2psnr(total_loss.item())}")
-            plt.plot(epochs_xaxis, train_psnr_yaxis)
-            plt.title(f"Training PSNR Plot {epoch}")
-            plt.savefig(os.path.join(LOGDIR, "train", "psnr", f"psnr_{epoch}.png"))
-            plt.clf()
-            plt.plot(epochs_xaxis, train_loss_yaxis)
-            plt.title(f"Training Loss Plot {epoch}")
-            plt.savefig(os.path.join(LOGDIR, "train", "loss", f"loss_{epoch}.png"))
-            plt.clf()
+        # Evaluate on validation data
+        if epoch % cfg.train.validate_every == 0:
 
-            val_loss_list = []
-            val_psnr_list = []
             with torch.no_grad():
-                for val_index in val_indices_to_plot: # TODO : check if all or just randomly one at a time
-                    # Run forward pass in eval mode
-                    val_img_target = images[val_index].to(device)
-                    val_img_target = val_img_target.reshape(-1, 3)
-                    val_pose = poses[val_index].to(device)
+                val_target_img = val_target_img.reshape(-1, 3)
+                val_pose = poses[val_index].to(cfg.device)
+                rgb_val_coarse, rgb_val_fine, _ = run_nerf(height, width, focal_length, val_pose,
+                    near_thresh, far_thresh, model_coarse, model_fine, cfg, mode='eval')
     
-                    rgb_val_coarse, rgb_val_fine, _ = run_nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
-                                near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
-                                include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-                                num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
-                    # val_img_target = val_img_target[val_selected_ray_indices, :]
-    
-                    coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_img_target)
-                    fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_img_target)
-                    total_loss = coarse_loss + fine_loss 
-                    val_psnr = mse2psnr(total_loss.item())
-    
-                    val_loss_list.append(total_loss.item())
-                    val_psnr_list.append(val_psnr)
-    
-                    print(f"{val_index} Val loss: {total_loss.item()} Val PSNR: {val_psnr}")
-    
-                    rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
-                    rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
-    
-    
-                    plt.imshow(rgb_val_coarse.detach().cpu().numpy())
-                    plt.title(f"Coarse RGB {epoch}")
-                    plt.savefig(os.path.join(LOGDIR, "val", f"val_{val_index}", "coarse_img", f"coarse_{epoch}.png"))
-                    plt.clf()
-                    
-                    plt.imshow(rgb_val_fine.detach().cpu().numpy())
-                    plt.title(f"Fine RGB {epoch}")
-                    plt.savefig(os.path.join(LOGDIR, "val", f"val_{val_index}", "fine_img", f"fine_{epoch}.png")) 
-                    plt.clf()
-                    # # Check if val_index is to be plotted
-                    # os.makedirs(os.path.join(LOGDIR, "val", f"val_{val_index}", "psnr",), exist_ok=True)
+                val_coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_target_img)
+                val_fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_target_img)
+                val_total_loss = val_coarse_loss + val_fine_loss 
 
-            # Averaging the Validation loss and PSNR and Saving plots
-            val_loss_yaxis.append(sum(val_loss_list) / len(val_indices_to_plot))
-            val_psnr_yaxis.append(sum(val_psnr_list) / len(val_indices_to_plot))
-
-            plt.plot(epochs_xaxis, val_psnr_yaxis)
-            plt.title(f"Validation PSNR Plot {epoch}")
-            plt.savefig(os.path.join(LOGDIR, "val", "psnr", f"psnr_{epoch}.png"))
-            plt.clf()
-
-            plt.plot(epochs_xaxis, val_loss_yaxis)
-            plt.title(f"Validation Loss Plot {epoch}")
-            plt.savefig(os.path.join(LOGDIR, "val", "loss", f"loss_{epoch}.png"))
-            plt.clf()
-                        
-    checkpoint_dict = {
-            'epoch': epoch, 
-            'model_coarse_state_dict': model_coarse.state_dict(), 
-            "model_fine_state_dict": model_fine.state_dict(), 
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": total_loss.item()
-    }
-    torch.save(
-                checkpoint_dict,
-                os.path.join(LOGDIR, "models","checkpoint" + str(epoch).zfill(5) + ".tar"),
-    )
+                writer.add_scalar('val/loss', val_total_loss.item(), epoch)
+                writer.add_scalar('val/psnr', mse2psnr(val_total_loss.item()), epoch)
     
-
-    # with torch.no_grad():
-    #     op, model_coarse, model_fine = load_checkpoint_model("/scratch/sravindh/project_nerf/logs/models/final_model_2.tar", optimizer, model_coarse, model_fine)
-    #     c, f, _ = run_nerf(height, width, focal_length, val_pose, use_viewdirs, is_ndc_required,use_white_bkgd,
-    #                             near_thresh, far_thresh, num_coarse_samples_per_ray, num_fine_samples_per_ray,
-    #                             include_input_in_posenc, include_input_in_direnc, num_pos_encoding_functions,
-    #                             num_dir_encoding_functions, model_coarse, model_fine, chunk_size, num_random_rays, mode='eval')
-    #     print(c.reshape(h,3).shape)
-    #     print("Eval")
+                rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
+                rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
+                writer.add_image("valimages/coarse", cast_to_image(rgb_val_coarse), epoch)
+                writer.add_image("valimages/fine", cast_to_image(rgb_val_fine), epoch)
             
 def main():
+    # Read user configurable settings from config file
+    config_file = "./configs/nerf_lego.yaml"
+    cfg = read_config(config_file)
 
+    # Define device to be used
+    cfg.device = torch.device(cfg.device) 
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is not available.")
 
     # Load dataset
     images, poses, hwf_list, train_indices, val_indices, test_indices, \
-    sph_test_poses, near_thresh, far_thresh= load_nerf_dataset(DATASET_TYPE, DATASET_DIR)
-    # images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh= load_tinynerf_dataset()
+    sph_test_poses, near_thresh, far_thresh = load_nerf_dataset(cfg.dataset.type, cfg.dataset.dir)
     images = torch.from_numpy(images)
     poses = torch.from_numpy(poses)
 
-    # Call the train or inference function # TODO: add appropriate classes
-    train_nerf(images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh)    
+    # Create result directory if not already created
+    if not os.path.exists(cfg.result.logdir):
+        os.mkdir(cfg.result.logdir)
+    else:
+        shutil.rmtree(cfg.result.logdir)
 
-    # TODO: add inference        
+    # Create a log file
+    log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
+    cfg.result.logger = logging.getLogger()
+    cfg.result.logger.setLevel(logging.INFO)
+    file_handler = logging.Filehandler(log_file_path)
+    file_handler.setLevel(logging.INFO)
+    cfg.result.logger.addHandler(file_handler)
+
+    # TODO: print config in log file
+
+    # Call the train or inference function
+    train_nerf(cfg, images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh) 
+    # TODO: add inference   
+    # eval_nerf(cfg, images, poses, hwf_list, test, near_thresh, far_thresh) 
 
 if __name__ == "__main__":
     main()

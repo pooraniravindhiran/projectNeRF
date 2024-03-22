@@ -1,0 +1,32 @@
+device: "cpu"
+
+dataset: 
+  type: "lego"
+  dir: "/scratch/sravindh/nerf_dataset/lego/"
+  half_resolution: True
+  is_ndc_required: False # set to True only for forward facing scenes
+  use_white_bkgd: False # applies only for blender data
+
+model:
+  use_viewdirs: True
+  num_pos_encoding_func: 6
+  num_dir_encoding_func: 6
+  num_coarse_samples_per_ray: 64
+  num_fine_samples_per_ray: 64
+  include_input_in_posencoding: False
+  include_input_in_direncoding: False
+  num_selected_rays: 8192
+
+train:
+  num_epochs: 50000
+  chunk_size: 16384 # set 4096 for 1.2GB of GPU memory
+  validate_every: 1000
+  save_checkpoint_for_every: 2000
+  lr: 5e-3
+  # lrate_decay: 250
+  # update_lr_every: 0
+
+result:
+  logdir: "/scratch/sravindh/project_nerf/logs/"
+  logger: None
+   
