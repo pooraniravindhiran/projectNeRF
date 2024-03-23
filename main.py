@@ -47,7 +47,8 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
     # Initialize summary writer
     writer = SummaryWriter(log_dir = os.path.join(cfg.result.logdir, "tf_writer"))
-    shutil.mkdir(os.path.join(cfg.result.logdir, "model_checkpoints"), parents=True, exist_ok=True)
+    os.makedirs(os.path.join(cfg.result.logdir, "model_checkpoints"), exist_ok=True)
+    # shutil.mkdir(os.path.join(cfg.result.logdir, "model_checkpoints"), parents=True, exist_ok=True)
 
     # Define validation data
     val_index = 111
@@ -57,7 +58,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
     # Define the models and the optimizer
     model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
     model_fine = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
-    optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=cfg.train.lr)
+    optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=float(cfg.train.lr))
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
@@ -160,14 +161,14 @@ def main():
         os.mkdir(cfg.result.logdir)
     else:
         shutil.rmtree(cfg.result.logdir)
-
+    
     # Create a log file
     log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
     cfg.result.logger = logging.getLogger()
-    cfg.result.logger.setLevel(logging.INFO)
-    file_handler = logging.Filehandler(log_file_path)
-    file_handler.setLevel(logging.INFO)
-    cfg.result.logger.addHandler(file_handler)
+    # cfg.result.logger.setLevel(logging.INFO)
+    # file_handler = logging.Filehandler(log_file_path)
+    # file_handler.setLevel(logging.INFO)
+    # cfg.result.logger.addHandler(file_handler)
 
     # TODO: print config in log file
 

@@ -134,11 +134,11 @@ def get_radiance_field_per_chunk(sample_points, model, viewdirs_batch, cfg):
     flattened_sample_points = sample_points.view(-1,3) # (h*w*num, 3)
 
 	# Encode sample points using positional embedding
-    encoded_sample_points = perform_positional_encoding(flattened_sample_points, cfg.model.num_pos_encoding_func, cfg.model.include_input_in_posenc)
+    encoded_sample_points = perform_positional_encoding(flattened_sample_points, cfg.model.num_pos_encoding_func, cfg.model.include_input_in_posencoding)
     if cfg.model.use_viewdirs:
         ipdirs_batch = viewdirs_batch[...,None,:].expand(sample_points.shape) # (h*w,num,3)
         ipdirs_batch = ipdirs_batch.reshape(-1, 3) # (h*w*num, 3)
-        encoded_dirs = perform_positional_encoding(ipdirs_batch, cfg.model.num_dir_encoding_func, cfg.model.include_input_in_direnc)
+        encoded_dirs = perform_positional_encoding(ipdirs_batch, cfg.model.num_dir_encoding_func, cfg.model.include_input_in_direncoding)
         encoded_sample_points_batch = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
 
     # Batchify and call NN model on the batch
