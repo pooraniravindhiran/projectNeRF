@@ -143,13 +143,13 @@ def get_radiance_field_per_chunk(sample_points, model, viewdirs_batch, cfg):
 
     # Batchify and call NN model on the batch
     chunks = get_chunks(encoded_sample_points_batch, cfg.train.chunk_size)
-    rgba_batch = []
+    rgba_list = []
     for chunk in chunks:
-        rgba_batch.append(model(chunk.to(cfg.device)))
-    rgba_batch = torch.cat(rgba_batch, dim=0)
-    rgba_batch = rgba_batch.reshape(list(sample_points.shape[:-1]) + [rgba_batch.shape[-1]])
+        rgba_list.append(model(chunk.to(cfg.device)))
+    rgba_list = torch.cat(rgba_list, dim=0)
+    rgba_list = rgba_list.reshape(list(sample_points.shape[:-1]) + [rgba_list.shape[-1]])
         
-    return rgba_batch
+    return rgba_list
 
 def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torch.Tensor, cfg):
     """

@@ -26,7 +26,7 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 
 def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
-               train_indices: list, val_indices: list, near_thresh: float, far_thresh: float):
+               train_indices: list, near_thresh: float, far_thresh: float):
     """
     Train a NeRF model using the specified images, camera poses, and other parameters.
 
@@ -36,7 +36,6 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         poses (torch.Tensor): Tensor containing camera poses corresponding to each image. Shape (num_images, 4, 4).
         hwf_list (list): List containing the height, width and focal length.
         train_indices (list): List of indices indicating the images used for training.
-        val_indices (list): List of indices indicating the images used for validation.
         near_thresh (float): Near threshold for ray termination.
         far_thresh (float): Far threshold for ray termination.
 
@@ -64,7 +63,8 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
     if cfg.train.checkpoint_path:
         cfg.result.logger.info(f"Loading pretrained model from checkpoint path: {cfg.train.checkpoint_path}")
         start_epoch, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
-    
+    else:
+        start_epoch = 0
     # Iterate through epochs
     cfg.result.logger.info(f"Initiating model training.")
     for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs)):
@@ -163,7 +163,7 @@ def main():
         shutil.rmtree(cfg.result.logdir)
     
     # Create a log file
-    log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
+    # log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
     cfg.result.logger = logging.getLogger()
     # cfg.result.logger.setLevel(logging.INFO)
     # file_handler = logging.Filehandler(log_file_path)
@@ -173,7 +173,7 @@ def main():
     # TODO: print config in log file
 
     # Call the train or inference function
-    train_nerf(cfg, images, poses, hwf_list, train_indices, val_indices, near_thresh, far_thresh) 
+    train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
     # TODO: add inference   
     # eval_nerf(cfg, images, poses, hwf_list, test, near_thresh, far_thresh) 
 

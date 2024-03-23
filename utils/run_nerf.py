@@ -85,6 +85,8 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 																		near_thresh, far_thresh, cfg)
 		
         # Pass the coarse points to the NN model to predict RGBA values for the points
+		if not cfg.model.use_viewdirs:
+			viewdirs_batch = None
 		rgba_coarse = get_radiance_field_per_chunk(coarse_sample_points, model_coarse, viewdirs_batch, cfg)
 		
 		# TODO: 1. Check extra arguments - white_bckgd, noise
