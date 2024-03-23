@@ -52,7 +52,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
     # Define validation data
     val_index = 111
     val_target_img = images[val_index].to(cfg.device)
-    writer.add_image("valimages/ground_truth", cast_to_image(val_target_img), 0) 
+    writer.add_image("valimages/ground_truth", cast_tensor_to_image(val_target_img), 0) 
 
     # Define the models and the optimizer
     model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
@@ -116,7 +116,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
-        writer.add_scalar('train/psnr', mse2psnr(total_loss.item()), epoch)
+        writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
 
         # Evaluate on validation data
         if epoch % cfg.train.validate_every == 0:
@@ -132,12 +132,12 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
                 val_total_loss = val_coarse_loss + val_fine_loss 
 
                 writer.add_scalar('val/loss', val_total_loss.item(), epoch)
-                writer.add_scalar('val/psnr', mse2psnr(val_total_loss.item()), epoch)
+                writer.add_scalar('val/psnr', convert_mse_to_psnr(val_total_loss.item()), epoch)
     
                 rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
                 rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
-                writer.add_image("valimages/coarse", cast_to_image(rgb_val_coarse), epoch)
-                writer.add_image("valimages/fine", cast_to_image(rgb_val_fine), epoch)
+                writer.add_image("valimages/coarse", cast_tensor_to_image(rgb_val_coarse), epoch)
+                writer.add_image("valimages/fine", cast_tensor_to_image(rgb_val_fine), epoch)
             
 def main():
     # Read user configurable settings from config file

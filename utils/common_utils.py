@@ -30,9 +30,9 @@ def read_config(filename: str):
         raise RuntimeError(f"Error reading the config YAML file: {e}")
     return config
 
-def cast_to_image(tensor: torch.Tensor):
+def cast_tensor_to_image(tensor: torch.Tensor):
     """
-    Converts a PyTorch tensor to PIL image suitable for visualization in TensorBoard.
+    Converts a tensor to PIL image suitable for visualization in TensorBoard.
 
     Args:
         tensor (torch.Tensor): Input tensor representing an image with shape (H, W, 3).
@@ -48,11 +48,21 @@ def cast_to_image(tensor: torch.Tensor):
 
     return img
 
-# def get_chunks(tensor: torch.Tensor, chunk_size: int):
-#   chunks = [tensor[i:i+chunk_size] for i in range(0, tensor.shape[0], chunk_size)]
-#   return chunks
+def get_chunks(tensor: torch.Tensor, chunk_size: int):
+    """
+    Splits a given tensor into batches/ chunks along its first dimension.
 
-def mse2psnr(mse):
+    Args:
+        tensor (torch.Tensor): The input tensor to be split into batches.
+        chunk_size (int): The size of each batch.
+
+    Returns:
+        chunks (torch.Tensor): A list of tensors, each containing a chunk of the input tensor.
+    """
+    chunks = [tensor[i:i+chunk_size] for i in range(0, tensor.shape[0], chunk_size)]
+    return chunks
+
+def convert_mse_to_psnr(mse: float):
     """
     Convert Mean Squared Error (MSE) to Peak Signal-to-Noise Ratio (PSNR) in decibels.
 
@@ -64,46 +74,118 @@ def mse2psnr(mse):
     """
     return -10. * math.log10(mse)
 
-# def cumprod_exclusive(tensor: torch.Tensor):
-#   # for input (a,b,c), cumprod_inclusive is (a, a*b, a*b*c)
-#   cumprod_inclusive = torch.cumprod(tensor, dim=-1)
+def compute_cumprod_exclusive(tensor: torch.Tensor):
+    """
+    Computes the exclusive cumulative product along the last dimension of a tensor.
+    Example:
+        tensor = torch.tensor([1, 2, 3, 4])
+        result = cumprod_exclusive(tensor)
+        print(result)
+        tensor([1., 1., 2., 6.])
 
-#   # for input (a,b,c), cumprod_exclusive is (1, a, a*b)
-#   cumprod_exclusive = torch.roll(cumprod_inclusive, 1, dims=-1) # (a*b*c, a, a*b)
-#   cumprod_exclusive[..., 0] = 1.
+    Args:
+        tensor (torch.Tensor): The input tensor.
 
-#   return cumprod_exclusive
+    Returns:
+        cumprod_exclusive (torch.Tensor): A tensor representing the exclusive cumulative product along the last dimension of the input tensor.
+    """
+    # For input [a,b,c]: cumprod_inclusive is [a, a*b, a*b*c]
+    cumprod_inclusive = torch.cumprod(tensor, dim=-1)
 
-# # Perform positional encoding on a tensor to get a high-dimensional representation enabling better capture of high frequency variations and
-# # to capture the relationship between tensor values.
-# # encoding is of shape (h * w * num_samples, 3 +(2 * num_encoding_functions * 3))
-# def positional_encoding(tensor: torch.Tensor, num_encoding_functions: int, include_input: bool):
-#     if include_input:
-#         encoding = [tensor] # (h * w * num_samples, 3)
-#     else:
-#         encoding = []
+    # For input [a,b,c]: cumprod_exclusive is [1, a, a*b]
+    cumprod_exclusive = torch.roll(cumprod_inclusive, 1, dims=-1) # [a*b*c, a, a*b]
+    cumprod_exclusive[..., 0] = 1.
 
-#     frequency_band = torch.linspace(
-#             2.0 ** 0.0,
-#             2.0 ** (num_encoding_functions - 1),
-#             num_encoding_functions,
-#             dtype=tensor.dtype,
-#             device=tensor.device,
-#     )
-#     for frequency in frequency_band:
-#         for func in [torch.sin, torch.cos]:
-#             sinusoidal_component = func(tensor * frequency)
-#             encoding.append(sinusoidal_component)
+    return cumprod_exclusive
 
-#     return torch.cat(encoding, dim=-1)
+def perform_positional_encoding(tensor: torch.Tensor, num_encoding_func: int, include_input: bool):
+    """
+    Encodes tensor with sinusoidal components for different frequency bands based on the number of encoding functions specified.
+    This helps to get a high-dimensional representation of the input, enabling better capture of high frequency variations and
+    to capture the relationship between tensor values.
 
-# # Do inverse tranform sampling- https://en.wikipedia.org/wiki/Inverse_transform_sampling
-# def sample_pdf(bins, weights, num_samples, sample_randomly):
+    Args:
+        tensor (torch.Tensor): The input tensor of shape (x, 3)
+        num_encoding_func (int): The number of encoding functions to use.
+        include_input (bool): Whether to include the input tensor in the encoding.
+
+    Returns:
+        torch.Tensor: A tensor representing the positional encoding
+            If include_input is False, it is of shape (x, 2*num_encoding_func*3) 
+            Else, it is of shape (x, 3 + (2*num_encoding_func*3))
+
+    """
+    if include_input:
+        encoding = [tensor] # (h * w * num_samples, 3)
+    else:
+        encoding = []
+
+    frequency_band = torch.linspace(
+            2.0 ** 0.0,
+            2.0 ** (num_encoding_func - 1),
+            num_encoding_func,
+            dtype=tensor.dtype,
+            device=tensor.device,
+    )
+
+    # Iterate through each frequency and both sin/cos functions to generate the encoded output
+    for frequency in frequency_band:
+        for func in [torch.sin, torch.cos]:
+            sinusoidal_component = func(tensor * frequency)
+            encoding.append(sinusoidal_component)
+
+    return torch.cat(encoding, dim=-1)
+
+def perform_integrated_positional_encoding(mu_tensor: torch.Tensor, diag_sigma_tensor: torch.tensor, num_encoding_func: int, device: torch.device):
+    """
+    Computes integrated positional encoding (IPE) for a given tensor representing mean and diagonal covariance.
+
+    Args:
+        mu_tensor (torch.Tensor): Tensor representing the mean of the coarse sample points. Shape is (x, y, 3)
+        diag_sigma_tensor (torch.Tensor): Tensor representing the diagonal of the covariance matrix associated with these points. Shape is (x, y, 3)
+        num_encoding_func (int): The number of encoding functions to use. Determines the number of sinusoidal functions to encode spatial information.
+
+    Returns:
+        torch.Tensor: A tensor representing the integrated positional encoding. 
+            Shape is (x, y, num_encoding_func * 3 * 2).
+    """
+    encoding = []
+
+    # Represent the frequencies considered in the form of a matrix for the 3 dimensions
+    frequency_matrix =  torch.cat([2**i * torch.eye(3) for i in range(0, num_encoding_func)], dim=-1).to(device)
+
+    mu_pe = torch.matmul(mu_tensor, frequency_matrix)**2
+    # TODO: check this.  # TODO : Check if cos component helps
+    mu_pe = torch.cat((mu_pe, mu_pe + 0.5 * torch.pi), -1)
+
+    diag_sigma_pe = torch.matmul(diag_sigma_tensor, frequency_matrix)**2
+    diag_sigma_pe = torch.cat((diag_sigma_pe, diag_sigma_pe), -1)
+
+    # Using formula derived in the paper for MIP NeRF
+    encoding.append(torch.sin(mu_pe) * torch.exp(-0.5*diag_sigma_pe))
+
+    return torch.cat(encoding, dim=-1)
+
+def sample_pdf(bins, weights, num_samples, sample_randomly):
+    """
+    Generates samples from a probability distribution defined by bins and weights using inverse transform sampling technique
+    (https://en.wikipedia.org/wiki/Inverse_transform_sampling).
+    In this context, PDF is of coarse sample points with their likelihood.
+
+    Args:
+        bins (torch.Tensor): Tensor representing the bins of the distribution.
+        weights (torch.Tensor): Tensor representing the weights associated with each bin.
+        num_samples (int): Number of samples to generate.
+        sample_randomly (bool): Whether to sample randomly (True) or deterministically (False).
+
+    Returns:
+        torch.Tensor: A tensor containing the generated samples.
+    """
     
-    # To prevent nans in weights
+    # Add small number to prevent nans in weights
     weights = weights + 1e-5
     
-    # Calculate PDF. Divide by sum to get them between 0 and 1.
+    # Calculate PDF. Divide by sum to get them between 0 and 1
     pdf = weights/weights.sum(-1).unsqueeze(-1)
 
     # Compute CDF for all bins starting from 0 to 1

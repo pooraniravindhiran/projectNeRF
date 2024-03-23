@@ -1,5 +1,4 @@
 import torch
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_params_of_gaussian_cone_coors(depth_values, cone_radii):
     t0 = depth_values[..., :-1]
@@ -49,28 +48,6 @@ def sample_coarse_points_mip(ray_directions: torch.Tensor, ray_origins: torch.Te
   # print(means.shape, covars.shape)
   return depth_values, means, covars
 
-
-# mu_tensor is of shape (h * w * num_samples,3)
-# diag_sigma_tensor is of shape (h * w * num_samples, ???)
-def integrated_positional_encoding(mu_tensor: torch.Tensor, diag_sigma_tensor: torch.tensor, num_encoding_functions: int):
-    encoding = []
-
-    frequency_matrixx =  torch.cat([2**i * torch.eye(3) for i in range(0,num_encoding_functions)], dim=-1).to(device) # P matriX
-
-    mu_pe = torch.matmul(mu_tensor, frequency_matrixx)**2 # shape: batch x num_encoding x 18
-    # print(mu_tensor.shape, diag_sigma_tensor.shape, frequency_matrix.shape, mu_pe.shape)
-    mu_pe = torch.cat((mu_pe, mu_pe + 0.5 * torch.pi), -1)
-
-    diag_sigma_pe = torch.matmul(mu_tensor, frequency_matrixx)**2
-    diag_sigma_pe = torch.cat((diag_sigma_pe, diag_sigma_pe), -1)
-    # print(diag_sigma_pe.shape)
-
-    encoding.append(torch.sin(mu_pe) * torch.exp(-0.5*diag_sigma_pe))
-    # encoding.append(torch.cos(mu_pe) * torch.exp(-0.5*diag_sigma_pe)) # TODO : CHECK IF ADDING THIS HELPS
-    # print(pe1.shape, pe2.shape)
-
-    return torch.cat(encoding, dim=-1)
-
 def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torch.Tensor, use_white_bkgd: bool):
 
   # Normalize RGB values to the range 0 to 1 and since density (opacity/ amount of light absorbed/ absorption coeff) is non-negative, apply relu activation.
@@ -114,3 +91,31 @@ def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torc
   disp_map = 1./torch.max(1e-10 * torch.ones_like(depth_map), depth_map / accumulated_transmittance_map)
 
   return rgb_map, disp_map, accumulated_transmittance_map, depth_map, cum_transmittance_values
+
+def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model, num_pos_encoding_functions, include_input_in_posenc, use_viewdirs,
+								 viewdirs_batch, num_dir_encoding_functions, include_input_in_direnc, chunk_size):
+
+		# Encode sample points using integrated positional embedding
+		encoded_sample_points = integrated_positional_encoding(mu_tensor, diag_sigma_tensor, num_pos_encoding_functions)
+		# encoded_sample_points = positional_encoding_obj(mu_tensor, diag_sigma_tensor)[0]
+		encoded_sample_points = encoded_sample_points.reshape(-1, encoded_sample_points.shape[-1])
+		# print(encoded_sample_points.shape)
+
+		if use_viewdirs:
+				ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
+				ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
+				# encoded_dirs = viewdirs_encoding_obj(ipdirs_batch.to(device))
+				encoded_dirs = positional_encoding(ipdirs_batch, num_dir_encoding_functions, include_input_in_direnc)
+				# print(encoded_dirs.shape)
+				encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
+
+		# print(encoded_sample_points.shape)
+		# Batchify
+		ip_chunks = get_chunks(encoded_sample_points, chunk_size)
+		rgba_batch = []
+		for chunk in ip_chunks:
+			rgba_batch.append(model(chunk.to(device)))
+
+		rgba_batch = torch.cat(rgba_batch, dim=0)
+		rgba_batch = rgba_batch.reshape(list(mu_tensor.shape[:-1]) + [rgba_batch.shape[-1]])
+		return rgba_batch
