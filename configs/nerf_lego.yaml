@@ -11,7 +11,7 @@ model:
   use_viewdirs: True
   num_pos_encoding_func: 6
   num_dir_encoding_func: 6
-  num_coarse_samples_per_ray: 64
+  num_coarse_samples_per_ray: 128
   num_fine_samples_per_ray: 128
   include_input_in_posencoding: False
   include_input_in_direncoding: False
@@ -23,9 +23,9 @@ train:
   chunk_size: 32768 # set 4096 for 1.2GB of GPU memory
   validate_every: 5000
   save_checkpoint_for_every: 10000
-  lr: 5e-4
+  lr: 1e-3
   checkpoint_path: False # '/scratch/sravindh/project_nerf/checkpoints_1/checkpoint30000.tar'
-  lr_decay: 500
+  lr_decay: 250
 
 result:
   logdir: "/scratch/sravindh/project_nerf/logs/"

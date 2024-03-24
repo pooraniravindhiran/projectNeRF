@@ -21,6 +21,9 @@ def load_model_checkpoint(checkpoint_path: str, optimizer: torch.optim.Optimizer
 
 	optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 	model_coarse.load_state_dict(checkpoint['model_coarse_state_dict'])
-	model_fine.load_state_dict(checkpoint['model_fine_state_dict'])
 
-	return start_iter, optimizer, model_coarse, model_fine
+	if model_fine != None:
+		model_fine.load_state_dict(checkpoint['model_fine_state_dict'])
+		return start_iter, optimizer, model_coarse, model_fine
+	else:
+		return start_iter, optimizer, model_coarse, None
