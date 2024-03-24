@@ -93,7 +93,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Update the learning rate
         decay_rate = 0.1
         decay_steps = cfg.train.lr_decay * 1000
-        cfg.train.lr = cfg.train.lr * (decay_rate ** (epoch / decay_steps))
+        cfg.train.lr = float(cfg.train.lr) * (decay_rate ** (epoch / decay_steps))
         for param_group in optimizer.param_groups:
             param_group['lr'] = cfg.train.lr
 

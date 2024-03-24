@@ -50,7 +50,7 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 
 	# Randomly sample rays and use only selected rays for 3D rendering to avoid OOM error
 	# ray params will then have dimension (num_selected_rays, 3)
-	selected_ray_indices = np.arange(ray_origins.shape[0])
+	selected_ray_coors = None
 	if mode=='train' and cfg.model.num_selected_rays > 0:
 		if epoch_num < cfg.model.centercrop_epochs:
 			dheight = int(height//2 * 0.5)
@@ -69,7 +69,10 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 		ray_directions = ray_directions[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
 		if cfg.model.use_viewdirs:
 			view_dirs = view_dirs[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
-	
+	else:
+	    ray_origins = ray_origins.view(-1, 3)
+	    ray_directions = ray_directions.view(-1, 3) # h*w, 3
+	    view_dirs = view_dirs.view(-1, 3)
     # Concatenate all necessary fields required for 3D rendering
 	# Concatednated result is of dimension (h*w, 9) or (num_selected_rays, 9)
 	concatenated_rays = torch.cat((ray_origins, ray_directions), dim=-1)
