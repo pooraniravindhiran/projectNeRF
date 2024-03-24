@@ -92,14 +92,11 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         optimizer.step()
 
         # Update the learning rate
-        # if update_lr_every != 0:
-        #     if epoch % update_lr_every == 0:
-        #         decay_rate = 0.1
-        #         decay_steps = lrate_decay * 1000
-        #         new_lr = lr * (decay_rate ** (epoch / decay_steps))
-
-        #         for param_group in optimizer.param_groups:
-        #             param_group['lr'] = new_lr
+        decay_rate = 0.1
+        decay_steps = cfg.train.lr_decay * 1000
+        cfg.train.lr = cfg.train.lr * (decay_rate ** (epoch / decay_steps))
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = cfg.train.lr
 
         # Save model checkpoint
         if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == cfg.train.num_epochs):

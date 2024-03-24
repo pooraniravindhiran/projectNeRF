@@ -24,8 +24,7 @@ train:
   save_checkpoint_for_every: 200
   lr: 5e-3
   checkpoint_path: '/scratch/sravindh/project_nerf/checkpoints_1/checkpoint30000.tar'
-  # lrate_decay: 250
-  # update_lr_every: 0
+  lr_decay: 250
 
 result:
   logdir: "/scratch/sravindh/project_nerf/logs/"
