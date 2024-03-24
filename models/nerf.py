@@ -51,7 +51,7 @@ class NeRF(nn.Module):
                 x = self.fc_layers[i](torch.cat((input_pos, x), dim=-1))
             else:
                 x = self.fc_layers[i](x)
-        x = nn.functional.relu(x)
+            x = nn.functional.relu(x)
 
         if self.use_viewdirs:
             alpha = self.alpha_layer(x)
