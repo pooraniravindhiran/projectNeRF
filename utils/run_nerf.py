@@ -8,7 +8,7 @@ from utils.ray_utils import *
 
 def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor, 
 			 near_thresh: float, far_thresh: float, model_coarse: torch.nn.Module, 
-			 model_fine: torch.nn.Module, cfg, mode: str):
+			 model_fine: torch.nn.Module, cfg, mode: str, epoch_num: int):
 	"""
     Run NeRF (Neural Radiance Fields) to render images for given poses.
 
@@ -23,6 +23,7 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
         model_fine (torch.nn.Module): Fine model for NeRF.
         cfg (object): Dictionary like configuration object.
         mode (str): Mode of operation ('train' or 'eval').
+		epoch_num (int): Iteration number
 
     Returns:
         rgb_coarse_image (torch.Tensor): Predicted coarse RGB image.
@@ -42,25 +43,32 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 	ray_origins, ray_directions = get_raybundle_for_img(height, width, focal_length, pose, cfg.device)
 	if cfg.model.use_viewdirs: # TODO: check benefit of this
 		view_dirs = ray_directions / ray_directions.norm(p=2, dim=-1).unsqueeze(-1)
-		view_dirs = view_dirs.view(-1, 3)
 
     # Convert to Normalized Device Coordinate space for forward facing scenes
 	if cfg.dataset.is_ndc_required:
 		ray_origins, ray_directions = tf_world2ndc(ray_origins, ray_directions, near_thresh, height, width, focal_length)
 
-	# Flatten the ray params along image dimensions from (h, w, 3) to (h*w, 3)
-	ray_origins = ray_origins.view(-1, 3)
-	ray_directions = ray_directions.view(-1, 3) # h*w, 3
-
 	# Randomly sample rays and use only selected rays for 3D rendering to avoid OOM error
 	# ray params will then have dimension (num_selected_rays, 3)
 	selected_ray_indices = np.arange(ray_origins.shape[0])
 	if mode=='train' and cfg.model.num_selected_rays > 0:
-		selected_ray_indices = np.random.choice(ray_directions.shape[0], size=(cfg.model.num_selected_rays), replace=False)
-		ray_directions = ray_directions[selected_ray_indices, :]
-		ray_origins = ray_origins[selected_ray_indices, :]
+		if epoch_num < cfg.model.centercrop_epochs:
+			dheight = int(height//2 * 0.5)
+			dwidth = int(width//2 * 0.5)
+			img_coors = torch.stack(torch.meshgrid(
+				torch.linspace(height//2-dheight, height//2+dheight-1, 2*dheight),
+				torch.linspace(width//2-dwidth, width//2+dwidth-1, 2*dwidth)), -1)
+		else:
+			img_coors = torch.stack(torch.meshgrid(
+				torch.linspace(0, height-1, height),
+				torch.linspace(0, width-1, width)), -1)
+		img_coors = img_coors.reshape(-1, 2)
+		selected_ray_indices = np.random.choice(img_coors.shape[0], size=(cfg.model.num_selected_rays), replace=False)
+		selected_ray_coors = img_coors[selected_ray_indices].long()
+		ray_origins = ray_origins[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
+		ray_directions = ray_directions[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
 		if cfg.model.use_viewdirs:
-			view_dirs = view_dirs[selected_ray_indices, :] 
+			view_dirs = view_dirs[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
 	
     # Concatenate all necessary fields required for 3D rendering
 	# Concatednated result is of dimension (h*w, 9) or (num_selected_rays, 9)
@@ -117,4 +125,4 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 	rgb_coarse_image = torch.cat(coarse_rgb_maps_list, dim=0)
 	rgb_fine_image = torch.cat(fine_rgb_maps_list, dim=0)
 
-	return rgb_coarse_image, rgb_fine_image, selected_ray_indices
+	return rgb_coarse_image, rgb_fine_image, selected_ray_coors
