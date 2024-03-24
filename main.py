@@ -76,7 +76,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
         # Run forward pass
         rgb_coarse, rgb_fine, selected_ray_coors = run_nerf(height, width, focal_length, training_campose,
-                near_thresh, far_thresh, model_coarse, model_fine, cfg, mode='train', epoch)
+                near_thresh, far_thresh, model_coarse, model_fine, cfg, epoch, mode='train')
         if cfg.model.num_selected_rays > 0:
             target_img = target_img[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
         
@@ -122,7 +122,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
                 val_target_img = val_target_img.reshape(-1, 3)
                 val_pose = poses[val_index].to(cfg.device)
                 rgb_val_coarse, rgb_val_fine, _ = run_nerf(height, width, focal_length, val_pose,
-                    near_thresh, far_thresh, model_coarse, model_fine, cfg, mode='eval', 0)
+                    near_thresh, far_thresh, model_coarse, model_fine, cfg, 0, mode='eval')
     
                 val_coarse_loss = torch.nn.functional.mse_loss(rgb_val_coarse, val_target_img)
                 val_fine_loss = torch.nn.functional.mse_loss(rgb_val_fine, val_target_img)

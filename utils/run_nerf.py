@@ -8,7 +8,7 @@ from utils.ray_utils import *
 
 def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor, 
 			 near_thresh: float, far_thresh: float, model_coarse: torch.nn.Module, 
-			 model_fine: torch.nn.Module, cfg, mode: str, epoch_num: int):
+			 model_fine: torch.nn.Module, cfg, epoch_num: int, mode: str):
 	"""
     Run NeRF (Neural Radiance Fields) to render images for given poses.
 
@@ -22,9 +22,9 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
         model_coarse (torch.nn.Module): Coarse model for NeRF.
         model_fine (torch.nn.Module): Fine model for NeRF.
         cfg (object): Dictionary like configuration object.
-        mode (str): Mode of operation ('train' or 'eval').
 		epoch_num (int): Iteration number
-
+        mode (str): Mode of operation ('train' or 'eval').
+		
     Returns:
         rgb_coarse_image (torch.Tensor): Predicted coarse RGB image.
         rgb_fine_image (torch.Tensor): Predicted fine RGB image.
