@@ -30,4 +30,5 @@ train:
 result:
   logdir: "/scratch/sravindh/project_nerf/logs/"
   logger: None
+  is_spherical_rendering: False
    
