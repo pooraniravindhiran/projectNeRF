@@ -6,6 +6,7 @@ import yaml
 import os
 import numpy as np
 from easydict import EasyDict
+from skimage.metrics import structural_similarity
 
 def read_config(filename: str):
     """
@@ -61,6 +62,20 @@ def get_chunks(tensor: torch.Tensor, chunk_size: int):
     """
     chunks = [tensor[i:i+chunk_size] for i in range(0, tensor.shape[0], chunk_size)]
     return chunks
+
+def compute_ssim_score(predicted_img: torch.Tensor, target_img: torch.Tensor):
+    """
+    Computes the Structural Similarity Index (SSIM) between a predicted image and a target image.
+
+    Args:
+        predicted_img (torch.Tensor): The predicted image tensor.
+        target_img (torch.Tensor): The target image tensor.
+
+    Returns:
+        score (float): The SSIM score between the predicted and target images.
+    """
+    (score, diff) = structural_similarity(predicted_img, target_img, full=True)
+    return score
 
 def convert_mse_to_psnr(mse: float):
     """

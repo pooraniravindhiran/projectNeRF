@@ -10,6 +10,7 @@ from tqdm import tqdm
 import logging
 import argparse
 import imageio
+import time
 
 from utils.common_utils import * 
 from dataset.load_dataset import load_nerf_dataset
@@ -28,13 +29,12 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 
 def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list, 
-              near_thresh: float, far_thresh: float):
-    #TODO: Add rendering time, log it if necessary
+              near_thresh: float, far_thresh: float, 
+              ground_truth=None):
     height, width, focal_length = hwf_list
     if not isinstance(poses, torch.Tensor):
         poses = torch.from_numpy(poses)
     poses = poses.to(cfg.device)
-
 
     # Define the models and the optimizer
     model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
@@ -43,26 +43,52 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
-        print(f"Loading pretrained model from checkpoint path: {cfg.train.checkpoint_path}")
         _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
-    
-    if not os.path.exists(os.path.join(cfg.result.logdir, 'test')):
-        os.mkdir(os.path.join(cfg.result.logdir, 'test'))
+        cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
+
+    # Create output dir
+    if not os.path.exists(os.path.join(cfg.result.logdir, 'inference')):
+        os.mkdir(os.path.join(cfg.result.logdir, 'inference'))
+
+    # Run inference for all test poses
     rgb_list = []
+    avg_loss = 0.0
+    avg_psnr = 0.0
+    avg_ssim = 0.0
     with torch.no_grad():
+        start_time = time.time()
         for i in tqdm(range(poses.shape[0])):
-            _, rgb_test_fine, _ = run_nerf(height, width, focal_length, poses[i],
+            rgb_test_coarse, rgb_test_fine, _ = run_nerf(height, width, focal_length, poses[i],
                 near_thresh, far_thresh, model_coarse, model_fine, cfg, 0, mode='eval')
+            if ground_truth is not None:
+                target_image = ground_truth[i].view(-1, 3)
+                coarse_loss = torch.nn.functional.mse_loss(rgb_test_coarse, target_image)
+                fine_loss = torch.nn.functional.mse_loss(rgb_test_fine, target_image)
+                total_loss = coarse_loss+fine_loss
+                avg_loss += total_loss.item()
+                avg_psnr += convert_mse_to_psnr(total_loss.item())
+                avg_ssim += compute_ssim_score(rgb_test_fine.reshape(height, width, 3).detach().cpu().numpy(), \
+                                               target_image.reshape(height, width, 3).detach().cpu().numpy())
             rgb_test_fine = rgb_test_fine.reshape(height, width, 3)
             rgb_test_fine = np.moveaxis(cast_tensor_to_image(rgb_test_fine), 0, -1)
             rgb_list.append(rgb_test_fine)
-            imageio.imwrite(os.path.join(cfg.result.logdir, 'test', '{:03d}.png'.format(i)), rgb_test_fine)
 
-    # Save Video for 360 rendering
-    if cfg.result.is_spherical_rendering:
+            imageio.imwrite(os.path.join(cfg.result.logdir, 'inference', '{:03d}.png'.format(i)), rgb_test_fine)
+        end_time = time.time()
+
+    # Log time info
+    cfg.result.logger.info(f"Total time to render {poses.shape[0]} images: {end_time-start_time}s.")
+    if ground_truth is not None:
+        cfg.result.logger.info(f"Average loss: {avg_loss/poses.shape[0]}\
+                                       \t avg psnr: {avg_psnr/poses.shape[0]} \
+                                       \t avg ssim: {avg_ssim/ poses.shape[0]}")
+
+    # Save video for 360 rendering
+    if ground_truth is None: 
         rgb_list = np.stack(rgb_list, dim=-1)
-        imageio.mimwrite(os.path.join(cfg.result.logdir, 'test', 'test_video.mp4'), rgb_list, fps=30, quality=8)
-    print(f"Done Rendering")
+        imageio.mimwrite(os.path.join(cfg.result.logdir, 'inference', 'test_video.mp4'), rgb_list, fps=30, quality=8)
+
+    cfg.result.logger.info(f"Test images are rendered.")
 
 def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
                train_indices: list, near_thresh: float, far_thresh: float):
@@ -125,6 +151,9 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         fine_loss = torch.nn.functional.mse_loss(rgb_fine, target_img)
         total_loss = coarse_loss + fine_loss
 
+        # Compute ssim
+        ssim_score = compute_ssim_score(rgb_fine.detach().cpu().numpy(), target_img.detach().cpu().numpy())
+
         # Backpropagate
         optimizer.zero_grad()
         total_loss.backward()
@@ -153,6 +182,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
+        writer.add_scalar('train/ssim', ssim_score, epoch)
         writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
         writer.add_scalar('lr', new_lr ,epoch)
 
@@ -171,12 +201,23 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
                 writer.add_scalar('val/loss', val_total_loss.item(), epoch)
                 writer.add_scalar('val/psnr', convert_mse_to_psnr(val_total_loss.item()), epoch)
+                val_ssim = compute_ssim_score(rgb_val_fine.detach().cpu().numpy(), val_target_img.detach().cpu().numpy())
+
+                # Add metrics to the logger
+                cfg.result.logger.info(f"Train Epoch: {epoch}\t loss: {total_loss.item()}\
+                                       \t psnr: {convert_mse_to_psnr(total_loss.item())} \
+                                       \t ssim: {ssim_score}")
+                cfg.result.logger.info(f"Val Epoch: {epoch}\t loss: {val_total_loss.item()}\
+                                       \t psnr: {convert_mse_to_psnr(val_total_loss.item())} \
+                                       \t ssim: {val_ssim}")
     
                 rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
                 rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
                 writer.add_image("valimages/coarse", cast_tensor_to_image(rgb_val_coarse), epoch)
                 writer.add_image("valimages/fine", cast_tensor_to_image(rgb_val_fine), epoch)
 
+    writer.flush()
+    writer.close()
     cfg.result.logger.info(f"Completed model training successfully.")
 
 def main():
@@ -228,11 +269,12 @@ def main():
     cfg.result.logger.info(f"Created log file: {log_file_path}.")
 
     # Add config to the log file
-    cfg.result.logger.info(f"Below is the user config.")
+    cfg.result.logger.info(f"\nBelow is the user config.")
     for section, options in cfg.items():
-        cfg.result.logger.info(f"Tags: {section}")
-        for key, value in options.items():
-            cfg.result.logger.info(f"{key}: {value}")
+        if isinstance(options, dict):
+            cfg.result.logger.info(f"Tags: {section}")
+            for key, value in options.items():
+                cfg.result.logger.info(f"{key}: {value}")
     cfg.result.logger.info("\n")
 
     # Load dataset
@@ -250,7 +292,7 @@ def main():
             eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
         else:
             test_poses = poses[test_indices]
-            eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
+            eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh, images[test_indices]) 
     
 if __name__ == "__main__":
     main()
