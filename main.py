@@ -152,7 +152,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         total_loss = coarse_loss + fine_loss
 
         # Compute ssim
-        ssim_score = compute_ssim_score(rgb_fine.detach().cpu().numpy(), target_img.detach().cpu().numpy())
+        # ssim_score = compute_ssim_score(rgb_fine.detach().cpu().numpy(), target_img.detach().cpu().numpy())
 
         # Backpropagate
         optimizer.zero_grad()
@@ -182,7 +182,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
-        writer.add_scalar('train/ssim', ssim_score, epoch)
+        # writer.add_scalar('train/ssim', ssim_score, epoch)
         writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
         writer.add_scalar('lr', new_lr ,epoch)
 
@@ -205,8 +205,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
                 # Add metrics to the logger
                 cfg.result.logger.info(f"Train Epoch: {epoch}\t loss: {total_loss.item()}\
-                                       \t psnr: {convert_mse_to_psnr(total_loss.item())} \
-                                       \t ssim: {ssim_score}")
+                                       \t psnr: {convert_mse_to_psnr(total_loss.item())}")
                 cfg.result.logger.info(f"Val Epoch: {epoch}\t loss: {val_total_loss.item()}\
                                        \t psnr: {convert_mse_to_psnr(val_total_loss.item())} \
                                        \t ssim: {val_ssim}")
