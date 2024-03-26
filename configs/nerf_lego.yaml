@@ -25,9 +25,9 @@ train:
   save_checkpoint_for_every: 10000
   lr: 5e-4
   lr_decay: 250
+  checkpoint_path: ""
 
 result:
-  logdir: "/scratch/sravindh/project_nerf/logs/"
+  logdir: ""
   logger: None
-  is_spherical_rendering: False
    

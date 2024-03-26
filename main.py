@@ -100,10 +100,11 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
-        cfg.result.logger.info(f"Loading pretrained model from checkpoint path: {cfg.train.checkpoint_path}")
-        start_epoch, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
+        start_epoch, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg, optimizer, model_coarse, model_fine)
+        cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
     else:
         start_epoch = 0
+
     # Iterate through epochs
     cfg.result.logger.info(f"Initiating model training.")
     for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs)):
@@ -153,7 +154,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
         writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
-        writer.add_scalar('lr', cfg.train.lr ,epoch)
+        writer.add_scalar('lr', new_lr ,epoch)
 
         # Evaluate on validation data
         if epoch % cfg.train.validate_every == 0:
@@ -175,13 +176,17 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
                 rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
                 writer.add_image("valimages/coarse", cast_tensor_to_image(rgb_val_coarse), epoch)
                 writer.add_image("valimages/fine", cast_tensor_to_image(rgb_val_fine), epoch)
-            
+
+    cfg.result.logger.info(f"Completed model training successfully.")
+
 def main():
 
     # Parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--eval_or_train', type=str, help="For training model, type train. For inference, type eval.")
+    parser.add_argument('--mode', type=str, help="For training model, type train. For inference, type eval.")
+    parser.add_argument('--logdir', type=str, help="Provide the path to save the results and logs.")
     parser.add_argument('--model_path', type=str, help="Provide the path to the model saved if any.", default=None)
+    parser.add_argument('--is_spherical', type=bool, help="Indicate if you want spherical poses or test poses for evaluation.", default=False)
     args = parser.parse_args()
 
     # Read user configurable settings from config file
@@ -194,16 +199,19 @@ def main():
         raise RuntimeError("CUDA is not available.")
     
     # Create result directory if not already created
-    if not os.path.exists(cfg.result.logdir):
-        os.mkdir(cfg.result.logdir)
+    if not os.path.exists(args.logdir):
+        os.mkdir(args.logdir)
     else: 
-        if args.eval_or_train == "train":
-            shutil.rmtree(cfg.result.logdir)
+        if args.mode == "train":
+            shutil.rmtree(os.path.dirname(args.logdir))
+            os.mkdir(args.logdir)
+    cfg.result.logdir = args.logdir
+    cfg.train.checkpoint_path = args.model_path
     
     # Configure logging
-    log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
+    log_file_path = os.path.join(args.logdir, "logfile.txt")
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         filename=log_file_path,
         filemode='w'  # Set file mode to 'w' to overwrite existing log file
@@ -216,24 +224,33 @@ def main():
     console_handler.setFormatter(formatter)
     # Add the console handler to the root logger
     logging.getLogger().addHandler(console_handler)
+    cfg.result.logger = logging
+    cfg.result.logger.info(f"Created log file: {log_file_path}.")
+
+    # Add config to the log file
+    cfg.result.logger.info(f"Below is the user config.")
+    for section, options in cfg.items():
+        cfg.result.logger.info(f"Tags: {section}")
+        for key, value in options.items():
+            cfg.result.logger.info(f"{key}: {value}")
+    cfg.result.logger.info("\n")
 
     # Load dataset
     images, poses, hwf_list, train_indices, val_indices, test_indices, \
-    sph_test_poses, near_thresh, far_thresh = load_nerf_dataset(cfg.dataset.type, cfg.dataset.dir)
+    sph_test_poses, near_thresh, far_thresh = load_nerf_dataset(cfg)
     images = torch.from_numpy(images)
     poses = torch.from_numpy(poses)
-    logging.info(f"Loaded dataset from {cfg.dataset.dir}")
-
-    # TODO: print config in log file
+    cfg.result.logger.info(f"Loaded dataset from {cfg.dataset.dir} successfully.")
     
     # Call the train or inference function
-    train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
-    
-    # if cfg.result.is_spherical_rendering:
-    #     eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
-    # else:
-    #     test_poses = poses[test_indices]
-    #     eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
+    if args.mode == "train":
+        train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
+    else:
+        if args.is_spherical:
+            eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
+        else:
+            test_poses = poses[test_indices]
+            eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
     
 if __name__ == "__main__":
     main()
