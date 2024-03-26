@@ -74,7 +74,7 @@ def compute_ssim_score(predicted_img: torch.Tensor, target_img: torch.Tensor):
     Returns:
         score (float): The SSIM score between the predicted and target images.
     """
-    (score, diff) = structural_similarity(predicted_img, target_img, full=True)
+    score = structural_similarity(predicted_img, target_img, channel_axis=0, full=False)
     return score
 
 def convert_mse_to_psnr(mse: float):

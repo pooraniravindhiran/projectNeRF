@@ -21,8 +21,8 @@ model:
 train:
   num_epochs: 6000
   chunk_size: 32768 # set 4096 for 1.2GB of GPU memory
-  validate_every: 5000
-  save_checkpoint_for_every: 10000
+  validate_every: 500
+  save_checkpoint_for_every: 1000
   lr: 5e-4
   lr_decay: 250
   checkpoint_path: ""

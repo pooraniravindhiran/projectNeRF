@@ -79,9 +79,7 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
     # Log time info
     cfg.result.logger.info(f"Total time to render {poses.shape[0]} images: {end_time-start_time}s.")
     if ground_truth is not None:
-        cfg.result.logger.info(f"Average loss: {avg_loss/poses.shape[0]}\
-                                       \t avg psnr: {avg_psnr/poses.shape[0]} \
-                                       \t avg ssim: {avg_ssim/ poses.shape[0]}")
+        cfg.result.logger.info(f"Average loss: {avg_loss/poses.shape[0]}\tavg psnr: {avg_psnr/poses.shape[0]} \tavg ssim: {avg_ssim/ poses.shape[0]}")
 
     # Save video for 360 rendering
     if ground_truth is None: 
@@ -201,19 +199,22 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
 
                 writer.add_scalar('val/loss', val_total_loss.item(), epoch)
                 writer.add_scalar('val/psnr', convert_mse_to_psnr(val_total_loss.item()), epoch)
-                val_ssim = compute_ssim_score(rgb_val_fine.detach().cpu().numpy(), val_target_img.detach().cpu().numpy())
 
-                # Add metrics to the logger
-                cfg.result.logger.info(f"Train Epoch: {epoch}\t loss: {total_loss.item()}\
-                                       \t psnr: {convert_mse_to_psnr(total_loss.item())}")
-                cfg.result.logger.info(f"Val Epoch: {epoch}\t loss: {val_total_loss.item()}\
-                                       \t psnr: {convert_mse_to_psnr(val_total_loss.item())} \
-                                       \t ssim: {val_ssim}")
     
                 rgb_val_fine = rgb_val_fine.reshape(height, width, 3)
                 rgb_val_coarse = rgb_val_coarse.reshape(height, width, 3)
-                writer.add_image("valimages/coarse", cast_tensor_to_image(rgb_val_coarse), epoch)
-                writer.add_image("valimages/fine", cast_tensor_to_image(rgb_val_fine), epoch)
+                rgb_val_coarse = cast_tensor_to_image(rgb_val_coarse)
+                rgb_val_fine =  cast_tensor_to_image(rgb_val_fine)
+
+                val_ssim = compute_ssim_score(rgb_val_fine, cast_tensor_to_image(val_target_img.reshape(height, width, 3)))
+                
+                writer.add_image("valimages/coarse", rgb_val_coarse, epoch)
+                writer.add_image("valimages/fine", rgb_val_fine, epoch)
+                writer.add_scalar('val/ssim', val_ssim, epoch)
+                
+                # Add metrics to the logger
+                cfg.result.logger.info(f"Train Epoch: {epoch}\t loss: {total_loss.item()}\tpsnr: {convert_mse_to_psnr(total_loss.item())}")
+                cfg.result.logger.info(f"Val Epoch: {epoch}\t loss: {val_total_loss.item()}\tpsnr: {convert_mse_to_psnr(val_total_loss.item())}\tssim: {val_ssim}")
 
     writer.flush()
     writer.close()
