@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import logging
 import argparse
+import imageio
 
 from utils.common_utils import * 
 from dataset.load_dataset import load_nerf_dataset
@@ -25,6 +26,43 @@ from utils.model_utils import load_model_checkpoint
 seed = 42
 torch.manual_seed(seed)
 np.random.seed(seed)
+
+def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list, 
+              near_thresh: float, far_thresh: float):
+    #TODO: Add rendering time, log it if necessary
+    height, width, focal_length = hwf_list
+    if not isinstance(poses, torch.Tensor):
+        poses = torch.from_numpy(poses)
+    poses = poses.to(cfg.device)
+
+
+    # Define the models and the optimizer
+    model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
+    model_fine = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
+    optimizer = torch.optim.Adam(list(model_coarse.parameters()) + list(model_fine.parameters()), lr=float(cfg.train.lr))
+
+    # Check if there is a pretrained checkpoint that is available
+    if cfg.train.checkpoint_path:
+        print(f"Loading pretrained model from checkpoint path: {cfg.train.checkpoint_path}")
+        _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
+    
+    if not os.path.exists(os.path.join(cfg.result.logdir, 'test')):
+        os.mkdir(os.path.join(cfg.result.logdir, 'test'))
+    rgb_list = []
+    with torch.no_grad():
+        for i in tqdm(range(poses.shape[0])):
+            _, rgb_test_fine, _ = run_nerf(height, width, focal_length, poses[i],
+                near_thresh, far_thresh, model_coarse, model_fine, cfg, 0, mode='eval')
+            rgb_test_fine = rgb_test_fine.reshape(height, width, 3)
+            rgb_test_fine = np.moveaxis(cast_tensor_to_image(rgb_test_fine), 0, -1)
+            rgb_list.append(rgb_test_fine)
+            imageio.imwrite(os.path.join(cfg.result.logdir, 'test', '{:03d}.png'.format(i)), rgb_test_fine)
+
+    # Save Video for 360 rendering
+    if cfg.result.is_spherical_rendering:
+        rgb_list = np.stack(rgb_list, dim=-1)
+        imageio.mimwrite(os.path.join(cfg.result.logdir, 'test', 'test_video.mp4'), rgb_list, fps=30, quality=8)
+    print(f"Done Rendering")
 
 def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
                train_indices: list, near_thresh: float, far_thresh: float):
@@ -94,12 +132,12 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Update the learning rate
         decay_rate = 0.1
         decay_steps = cfg.train.lr_decay * 1000
-        cfg.train.lr = float(cfg.train.lr) * (decay_rate ** (epoch / decay_steps))
+        new_lr = float(cfg.train.lr) * (decay_rate ** (epoch / decay_steps))
         for param_group in optimizer.param_groups:
-            param_group['lr'] = cfg.train.lr
+            param_group['lr'] = new_lr
 
         # Save model checkpoint
-        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == cfg.train.num_epochs):
+        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs-1):
             checkpoint_dict = {
                 'epoch': epoch, 
                 'model_coarse_state_dict': model_coarse.state_dict(), 
@@ -115,6 +153,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
         writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
+        writer.add_scalar('lr', cfg.train.lr ,epoch)
 
         # Evaluate on validation data
         if epoch % cfg.train.validate_every == 0:
@@ -186,11 +225,15 @@ def main():
     logging.info(f"Loaded dataset from {cfg.dataset.dir}")
 
     # TODO: print config in log file
-
+    
     # Call the train or inference function
     train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
-    # TODO: add inference   
-    # eval_nerf(cfg, images, poses, hwf_list, test, near_thresh, far_thresh) 
-
+    
+    # if cfg.result.is_spherical_rendering:
+    #     eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
+    # else:
+    #     test_poses = poses[test_indices]
+    #     eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
+    
 if __name__ == "__main__":
     main()
