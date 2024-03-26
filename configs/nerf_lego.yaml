@@ -23,11 +23,11 @@ train:
   chunk_size: 32768 # set 4096 for 1.2GB of GPU memory
   validate_every: 5000
   save_checkpoint_for_every: 10000
-  lr: 1e-3
-  checkpoint_path: False # '/scratch/sravindh/project_nerf/checkpoints_1/checkpoint30000.tar'
+  lr: 5e-4
   lr_decay: 250
+  checkpoint_path: ""
 
 result:
-  logdir: "/scratch/sravindh/project_nerf/logs/"
+  logdir: ""
   logger: None
    
