@@ -30,7 +30,8 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
               near_thresh: float, far_thresh: float):
     #TODO: Add rendering time, log it if necessary
     height, width, focal_length = hwf_list
-    poses = torch.from_numpy(poses)
+    if not isinstance(poses, torch.Tensor):
+        poses = torch.from_numpy(poses)
     poses = poses.to(cfg.device)
 
 
@@ -52,13 +53,14 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
             _, rgb_test_fine, _ = run_nerf(height, width, focal_length, poses[i],
                 near_thresh, far_thresh, model_coarse, model_fine, cfg, 0, mode='eval')
             rgb_test_fine = rgb_test_fine.reshape(height, width, 3)
+            rgb_test_fine = np.moveaxis(cast_tensor_to_image(rgb_test_fine), 0, -1)
             rgb_list.append(rgb_test_fine)
-            imageio.imwrite(os.path.join(cfg.result.logdir, 'test', '{:03d}.png'.format(i)), cast_tensor_to_image(rgb_test_fine))
+            imageio.imwrite(os.path.join(cfg.result.logdir, 'test', '{:03d}.png'.format(i)), rgb_test_fine)
 
     # Save Video for 360 rendering
     if cfg.result.is_spherical_rendering:
-        rgb_list = torch.cat(rgb_list, dim=-1)
-        imageio.mimwrite(os.path.join(cfg.result.logdir, 'test', 'test_video.mp4'), cast_tensor_to_image(rgb_list), fps=30, quality=8)
+        rgb_list = np.stack(rgb_list, dim=-1)
+        imageio.mimwrite(os.path.join(cfg.result.logdir, 'test', 'test_video.mp4'), rgb_list, fps=30, quality=8)
     print(f"Done Rendering")
 
 def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
@@ -129,12 +131,12 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Update the learning rate
         decay_rate = 0.1
         decay_steps = cfg.train.lr_decay * 1000
-        cfg.train.lr = float(cfg.train.lr) * (decay_rate ** (epoch / decay_steps))
+        new_lr = float(cfg.train.lr) * (decay_rate ** (epoch / decay_steps))
         for param_group in optimizer.param_groups:
-            param_group['lr'] = cfg.train.lr
+            param_group['lr'] = new_lr
 
         # Save model checkpoint
-        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == cfg.train.num_epochs):
+        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs-1):
             checkpoint_dict = {
                 'epoch': epoch, 
                 'model_coarse_state_dict': model_coarse.state_dict(), 
@@ -150,6 +152,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         # Save training loss and psnr values to writer
         writer.add_scalar('train/loss', total_loss.item(), epoch)
         writer.add_scalar('train/psnr', convert_mse_to_psnr(total_loss.item()), epoch)
+        writer.add_scalar('lr', cfg.train.lr ,epoch)
 
         # Evaluate on validation data
         if epoch % cfg.train.validate_every == 0:
@@ -193,7 +196,7 @@ def main():
         os.mkdir(cfg.result.logdir)
     else:
         shutil.rmtree(cfg.result.logdir)
-    
+
     # Create a log file
     # log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
     cfg.result.logger = logging.getLogger()
@@ -203,15 +206,15 @@ def main():
     # cfg.result.logger.addHandler(file_handler)
 
     # TODO: print config in log file
-
+    
     # Call the train or inference function
     train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
     
-    if cfg.result.is_spherical_rendering:
-        eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
-    else:
-        test_poses = poses[test_indices]
-        eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
+    # if cfg.result.is_spherical_rendering:
+    #     eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
+    # else:
+    #     test_poses = poses[test_indices]
+    #     eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh) 
     
 if __name__ == "__main__":
     main()
