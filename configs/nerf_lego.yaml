@@ -24,7 +24,6 @@ train:
   validate_every: 5000
   save_checkpoint_for_every: 10000
   lr: 5e-4
-  checkpoint_path: False # '/scratch/sravindh/project_nerf/checkpoints_1/checkpoint30000.tar'
   lr_decay: 500
 
 result:

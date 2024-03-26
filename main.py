@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import logging
+import argparse
 
 from utils.common_utils import * 
 from dataset.load_dataset import load_nerf_dataset
@@ -137,6 +138,13 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
                 writer.add_image("valimages/fine", cast_tensor_to_image(rgb_val_fine), epoch)
             
 def main():
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--eval_or_train', type=str, help="For training model, type train. For inference, type eval.")
+    parser.add_argument('--model_path', type=str, help="Provide the path to the model saved if any.", default=None)
+    args = parser.parse_args()
+
     # Read user configurable settings from config file
     config_file = "./configs/nerf_lego.yaml"
     cfg = read_config(config_file)
@@ -145,26 +153,37 @@ def main():
     cfg.device = torch.device(cfg.device) 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is not available.")
+    
+    # Create result directory if not already created
+    if not os.path.exists(cfg.result.logdir):
+        os.mkdir(cfg.result.logdir)
+    else: 
+        if args.eval_or_train == "train":
+            shutil.rmtree(cfg.result.logdir)
+    
+    # Configure logging
+    log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        filename=log_file_path,
+        filemode='w'  # Set file mode to 'w' to overwrite existing log file
+    )
+    # Create a console handler and set the level to INFO
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    # Create a formatter and attach it to the console handler
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    # Add the console handler to the root logger
+    logging.getLogger().addHandler(console_handler)
 
     # Load dataset
     images, poses, hwf_list, train_indices, val_indices, test_indices, \
     sph_test_poses, near_thresh, far_thresh = load_nerf_dataset(cfg.dataset.type, cfg.dataset.dir)
     images = torch.from_numpy(images)
     poses = torch.from_numpy(poses)
-
-    # Create result directory if not already created
-    if not os.path.exists(cfg.result.logdir):
-        os.mkdir(cfg.result.logdir)
-    else:
-        shutil.rmtree(cfg.result.logdir)
-    
-    # Create a log file
-    # log_file_path = os.path.join(cfg.result.logdir, "logfile.txt")
-    cfg.result.logger = logging.getLogger()
-    # cfg.result.logger.setLevel(logging.INFO)
-    # file_handler = logging.Filehandler(log_file_path)
-    # file_handler.setLevel(logging.INFO)
-    # cfg.result.logger.addHandler(file_handler)
+    logging.info(f"Loaded dataset from {cfg.dataset.dir}")
 
     # TODO: print config in log file
 
