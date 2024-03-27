@@ -43,7 +43,7 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
-        _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
+        _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg, optimizer, model_coarse, model_fine)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
 
     # Create output dir
