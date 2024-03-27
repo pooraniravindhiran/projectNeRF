@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import logging
 import argparse
-import imageio
+import cv2
 import time
 
 from utils.common_utils import * 
@@ -38,7 +38,7 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
-        _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model_coarse, model_fine)
+        _, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg, optimizer, model_coarse, model_fine)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
 
     # Create output dir
@@ -50,6 +50,14 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
     avg_loss = 0.0
     avg_psnr = 0.0
     avg_ssim = 0.0
+
+    # Initialize VideoWriter object
+    if ground_truth is None:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fps = 30
+        frame_size = (height, width)
+        video_writer = cv2.VideoWriter(os.path.join(cfg.result.logdir, "inference", "test_video.mp4"), fourcc, fps, frame_size)
+  
     with torch.no_grad():
         start_time = time.time()
         for i in tqdm(range(poses.shape[0])):
@@ -65,10 +73,11 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
                 avg_ssim += compute_ssim_score(rgb_test_fine.reshape(height, width, 3).detach().cpu().numpy(), \
                                                target_image.reshape(height, width, 3).detach().cpu().numpy())
             rgb_test_fine = rgb_test_fine.reshape(height, width, 3)
-            rgb_test_fine = np.moveaxis(cast_tensor_to_image(rgb_test_fine), 0, -1)
-            rgb_list.append(rgb_test_fine)
+            rgb_test_fine = np.transpose(cast_tensor_to_image(rgb_test_fine), (1,2,0))
+            rgb_test_fine = cv2.cvtColor(rgb_test_fine, cv2.COLOR_BGR2RGB)
+            video_writer.write(rgb_test_fine)
 
-            imageio.imwrite(os.path.join(cfg.result.logdir, 'inference', '{:03d}.png'.format(i)), rgb_test_fine)
+            cv2.imwrite(os.path.join(cfg.result.logdir, 'inference', '{:03d}.png'.format(i)), rgb_test_fine)
         end_time = time.time()
 
     # Log time info
@@ -76,11 +85,8 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
     if ground_truth is not None:
         cfg.result.logger.info(f"Average loss: {avg_loss/poses.shape[0]}\tavg psnr: {avg_psnr/poses.shape[0]} \tavg ssim: {avg_ssim/ poses.shape[0]}")
 
-    # Save video for 360 rendering
     if ground_truth is None: 
-        rgb_list = np.stack(rgb_list, dim=-1)
-        imageio.mimwrite(os.path.join(cfg.result.logdir, 'inference', 'test_video.mp4'), rgb_list, fps=30, quality=8)
-
+        video_writer.release()
     cfg.result.logger.info(f"Test images are rendered.")
 
 def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list, 
