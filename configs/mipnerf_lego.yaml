@@ -9,20 +9,20 @@ dataset:
 
 model:
   use_viewdirs: True
-  num_pos_encoding_func: 6
-  num_dir_encoding_func: 6
-  num_coarse_samples_per_ray: 64
+  num_pos_encoding_func: 16
+  num_dir_encoding_func: 4
+  num_coarse_samples_per_ray: 128
   num_fine_samples_per_ray: 128
   include_input_in_posencoding: False
   include_input_in_direncoding: False
-  num_selected_rays: 1024
+  num_selected_rays: 0
   centercrop_epochs: 500
 
 train:
-  num_epochs: 200000
+  num_epochs: 1000
   chunk_size: 32768 # set 4096 for 1.2GB of GPU memory
-  validate_every: 5000
-  save_checkpoint_for_every: 10000
+  validate_every: 50
+  save_checkpoint_for_every: 100
   lr: 5e-4
   lr_decay: 250
   checkpoint_path: ""
