@@ -151,13 +151,13 @@ def perform_positional_encoding(tensor: torch.Tensor, num_encoding_func: int, in
 
     return torch.cat(encoding, dim=-1)
 
-def perform_integrated_positional_encoding(mu_tensor: torch.Tensor, diag_sigma_tensor: torch.tensor, num_encoding_func: int, device: torch.device):
+def perform_integrated_positional_encoding(num_encoding_func: int, device: torch.device, mu_tensor: torch.Tensor, diag_sigma_tensor: torch.tensor=None):
     """
     Computes integrated positional encoding (IPE) for a given tensor representing mean and diagonal covariance.
 
     Args:
         mu_tensor (torch.Tensor): Tensor representing the mean of the coarse sample points. Shape is (x, y, 3)
-        diag_sigma_tensor (torch.Tensor): Tensor representing the diagonal of the covariance matrix associated with these points. Shape is (x, y, 3)
+        diag_sigma_tensor (torch.Tensor)(optional): Tensor representing the diagonal of the covariance matrix associated with these points. Shape is (x, y, 3)
         num_encoding_func (int): The number of encoding functions to use. Determines the number of sinusoidal functions to encode spatial information.
 
     Returns:
@@ -166,18 +166,29 @@ def perform_integrated_positional_encoding(mu_tensor: torch.Tensor, diag_sigma_t
     """
     encoding = []
 
-    # Represent the frequencies considered in the form of a matrix for the 3 dimensions
-    frequency_matrix =  torch.cat([2**i * torch.eye(3) for i in range(0, num_encoding_func)], dim=-1).to(device)
+    # # Represent the frequencies considered in the form of a matrix for the 3 dimensions
+    # frequency_matrix =  torch.cat([2**i * torch.eye(3) for i in range(0, num_encoding_func)], dim=-1).to(device)
 
-    mu_pe = torch.matmul(mu_tensor, frequency_matrix)**2
-    # TODO: check this.  # TODO : Check if cos component helps
+    # mu_pe = torch.matmul(mu_tensor, frequency_matrix)**2
+    # # TODO: check this.  # TODO : Check if cos component helps
+    # mu_pe = torch.cat((mu_pe, mu_pe + 0.5 * torch.pi), -1)
+
+    # diag_sigma_pe = torch.matmul(diag_sigma_tensor, frequency_matrix)**2
+    # diag_sigma_pe = torch.cat((diag_sigma_pe, diag_sigma_pe), -1)
+
+    # # Using formula derived in the paper for MIP NeRF
+    # encoding.append(torch.sin(mu_pe) * torch.exp(-0.5*diag_sigma_pe))
+
+    frequency_vector = torch.Tensor([2 ** i for i in range(0, num_encoding_func)]).to(device)                               
+    mu_pe = (mu_tensor[..., None, :] * frequency_vector[:, None]).reshape(list(mu_tensor.shape[:-1]) + [-1])
     mu_pe = torch.cat((mu_pe, mu_pe + 0.5 * torch.pi), -1)
 
-    diag_sigma_pe = torch.matmul(diag_sigma_tensor, frequency_matrix)**2
-    diag_sigma_pe = torch.cat((diag_sigma_pe, diag_sigma_pe), -1)
-
-    # Using formula derived in the paper for MIP NeRF
-    encoding.append(torch.sin(mu_pe) * torch.exp(-0.5*diag_sigma_pe))
+    if diag_sigma_tensor is not None:
+        diag_sigma_pe = (diag_sigma_tensor[..., None, :] * frequency_vector[:, None]**2).reshape(list(mu_tensor.shape[:-1]) + [-1])
+        diag_sigma_pe = torch.cat((diag_sigma_pe, diag_sigma_pe), -1)
+        encoding.append(torch.sin(mu_pe) * torch.exp(-0.5*diag_sigma_pe))
+    else:
+        encoding.append(torch.sin(mu_pe))
 
     return torch.cat(encoding, dim=-1)
 

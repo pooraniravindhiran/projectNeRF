@@ -82,17 +82,15 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
                                      viewdirs_batch, cfg):
 
     # Encode sample points using integrated positional embedding
-    encoded_sample_points = perform_integrated_positional_encoding(mu_tensor, diag_sigma_tensor, 
-                                                                   cfg.model.num_pos_encoding_func)
-    # encoded_sample_points = positional_encoding_obj(mu_tensor, diag_sigma_tensor)[0]
+    encoded_sample_points = perform_integrated_positional_encoding(cfg.model.num_pos_encoding_func,
+                                                                   cfg.device, mu_tensor, diag_sigma_tensor)
     encoded_sample_points = encoded_sample_points.reshape(-1, encoded_sample_points.shape[-1])
 
     if cfg.model.use_viewdirs:
             ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
             ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
-            # encoded_dirs = viewdirs_encoding_obj(ipdirs_batch.to(device))
-            encoded_dirs = perform_positional_encoding(ipdirs_batch, cfg.model.num_dir_encoding_func, 
-                                                       cfg.model.include_input_in_direncoding)
+            encoded_dirs = perform_positional_encoding(cfg.model.num_dir_encoding_func, 
+                                                       cfg.device, ipdirs_batch)
             encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
             
     # Batchify

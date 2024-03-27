@@ -18,11 +18,6 @@ from models.nerf import NeRF
 from utils.run_nerf import run_nerf
 from utils.model_utils import load_model_checkpoint
 
-# TODO: val set
-# TODO: height, width crct ??
-# TODO: decaying learning rate 
-# TODO: check param values
-
 # Set random seed for reproducibility
 seed = 42
 torch.manual_seed(seed)
