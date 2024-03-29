@@ -132,9 +132,10 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         training_campose = poses[index].to(cfg.device)
 
         # Run forward pass
-        rgb_coarse, rgb_fine, _ = run_mipnerf(height, width, focal_length, training_campose,
+        rgb_coarse, rgb_fine, selected_ray_coors = run_mipnerf(height, width, focal_length, training_campose,
                 near_thresh, far_thresh, model, cfg, epoch, mode='train')
-        
+        if cfg.model.num_selected_rays > 0:
+            target_img = target_img[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
         # Compute loss
         coarse_loss = torch.nn.functional.mse_loss(rgb_coarse, target_img)
         fine_loss = torch.nn.functional.mse_loss(rgb_fine, target_img)
@@ -221,7 +222,7 @@ def main():
     args = parser.parse_args()
 
     # Read user configurable settings from config file
-    config_file = "./configs/nerf_lego.yaml"
+    config_file = "./configs/mipnerf_lego.yaml"
     cfg = read_config(config_file)
 
     # Define device to be used

@@ -135,6 +135,9 @@ def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: 
     num_stability_val = 1e-10
     cum_transmittance_values = transmittance_values * compute_cumprod_exclusive(1. - transmittance_values + num_stability_val) # (h x w x num_samples)
     # TODO: why 1-transmittance values
+    
+    # Compute cum transmittance for image
+    accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
 
     # Render RGB map i.e RGB image
     rgb_map = (cum_transmittance_values[..., None] * rgb_values).sum(dim=-2) # (h x w x 3)
@@ -143,9 +146,6 @@ def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: 
     t_mids = 0.5 * (depth_values[..., :-1] + depth_values[..., 1:])
     distance = (cum_transmittance_values * t_mids).sum(dim=-1) / accumulated_transmittance_map
     depth_map = torch.clamp(torch.nan_to_num(distance), depth_values[:, 0], depth_values[:, -1]) # (h x w x 1)
-
-    # Compute cum transmittance for image
-    accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
 
     # Check if user wants a white background
     if cfg.dataset.use_white_bkgd:
