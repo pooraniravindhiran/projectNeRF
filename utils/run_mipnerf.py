@@ -69,6 +69,7 @@ def run_mipnerf(height: int, width: int, focal_length: float, pose: torch.Tensor
 		selected_ray_coors = img_coors[selected_ray_indices].long()
 		ray_origins = ray_origins[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
 		ray_directions = ray_directions[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
+		cone_radii = cone_radii[selected_ray_coors[:, 0], selected_ray_coors[:, 1]].unsqueeze(-1)
 		if cfg.model.use_viewdirs:
 			view_dirs = view_dirs[selected_ray_coors[:, 0], selected_ray_coors[:, 1]]
 	else:
@@ -76,7 +77,7 @@ def run_mipnerf(height: int, width: int, focal_length: float, pose: torch.Tensor
 		ray_directions = ray_directions.view(-1, 3) # h*w, 3
 		view_dirs = view_dirs.view(-1, 3)
 		cone_radii = cone_radii.view(-1, 1)
-		
+	
     # Concatenate all necessary fields required for 3D rendering
 	# Concatednated result is of dimension (h*w, 10) or (num_selected_rays, 10)
 	concatenated_rays = torch.cat((ray_origins, ray_directions, cone_radii), dim=-1)

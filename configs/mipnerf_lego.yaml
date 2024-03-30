@@ -2,8 +2,8 @@ device: "cuda"
 
 dataset: 
   type: "lego"
-  dir: "/scratch/sravindh/nerf_dataset/lego/"
-  half_resolution: True
+  dir: "/scratch/atiwar31/nerf_dataset/lego/"
+  factor: 2
   is_ndc_required: False # set to True only for forward facing scenes
   use_white_bkgd: False # applies only for blender data
 
@@ -15,14 +15,14 @@ model:
   num_fine_samples_per_ray: 128
   include_input_in_posencoding: False
   include_input_in_direncoding: False
-  num_selected_rays: 0
+  num_selected_rays: 2048
   centercrop_epochs: 500
 
 train:
-  num_epochs: 1000
-  chunk_size: 8192 # set 4096 for 1.2GB of GPU memory
-  validate_every: 50
-  save_checkpoint_for_every: 100
+  num_epochs: 200000
+  chunk_size: 32768 # set 4096 for 1.2GB of GPU memory
+  validate_every: 5000
+  save_checkpoint_for_every: 10000
   lr: 5e-4
   lr_decay: 250
   checkpoint_path: ""

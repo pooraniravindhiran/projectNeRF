@@ -135,6 +135,9 @@ def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: 
     num_stability_val = 1e-10
     cum_transmittance_values = transmittance_values * compute_cumprod_exclusive(1. - transmittance_values + num_stability_val) # (h x w x num_samples)
     # TODO: why 1-transmittance values
+    
+    # Compute cum transmittance for image
+    accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
 
     # Render RGB map i.e RGB image
     rgb_map = (cum_transmittance_values[..., None] * rgb_values).sum(dim=-2) # (h x w x 3)

@@ -50,7 +50,7 @@ def load_nerf_dataset(cfg):
         use_white_background = False
         
         # Call function to create the dataset
-        images, poses, hwf_list, indices_tuple, sph_test_poses = load_blender_data(DATASET_DIR, half_img_resolution, num_of_test_images_per_set)
+        images, poses, hwf_list, indices_tuple, sph_test_poses = load_blender_data(DATASET_DIR, cfg.dataset.factor, num_of_test_images_per_set)
         # print(f'Loaded lego dataset from {DATASET_DIR}.\nShape of images: {images.shape}.')
         
         # Get indices for data split

@@ -35,7 +35,7 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 
-def load_blender_data(basedir, half_res=False, testskip=1):
+def load_blender_data(basedir, factor, testskip=1):
     splits = ['train', 'val', 'test']
     metas = {}
     for s in splits:
@@ -75,15 +75,16 @@ def load_blender_data(basedir, half_res=False, testskip=1):
     
     render_poses = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
     
-    if half_res:
-        H = H//2
-        W = W//2
-        focal = focal/2.
+    if factor is not None:
+        factor = int(factor)
+        H = H//factor
+        W = W//factor
+        focal = focal/factor
 
-        imgs_half_res = np.zeros((imgs.shape[0], H, W, 4))
+        imgs_resol = np.zeros((imgs.shape[0], H, W, 4))
         for i, img in enumerate(imgs):
-            imgs_half_res[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
-        imgs = imgs_half_res
+            imgs_resol[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
+        imgs = imgs_resol
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
