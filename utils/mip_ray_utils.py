@@ -89,7 +89,7 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
     if cfg.model.use_viewdirs:
             ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
             ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
-            encoded_dirs = perform_positional_encoding(cfg.model.num_dir_encoding_func, 
+            encoded_dirs = perform_integrated_positional_encoding(cfg.model.num_dir_encoding_func, 
                                                        cfg.device, ipdirs_batch)
             encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
             
@@ -139,13 +139,13 @@ def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: 
     # Render RGB map i.e RGB image
     rgb_map = (cum_transmittance_values[..., None] * rgb_values).sum(dim=-2) # (h x w x 3)
 
+    # Compute cum transmittance for image
+    accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
+
     # Render depth map i.e. depth image
     t_mids = 0.5 * (depth_values[..., :-1] + depth_values[..., 1:])
     distance = (cum_transmittance_values * t_mids).sum(dim=-1) / accumulated_transmittance_map
     depth_map = torch.clamp(torch.nan_to_num(distance), depth_values[:, 0], depth_values[:, -1]) # (h x w x 1)
-
-    # Compute cum transmittance for image
-    accumulated_transmittance_map = cum_transmittance_values.sum(dim=-1)
 
     # Check if user wants a white background
     if cfg.dataset.use_white_bkgd:

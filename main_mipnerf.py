@@ -221,7 +221,7 @@ def main():
     args = parser.parse_args()
 
     # Read user configurable settings from config file
-    config_file = "./configs/nerf_lego.yaml"
+    config_file = "./configs/mipnerf_lego.yaml"
     cfg = read_config(config_file)
 
     # Define device to be used
