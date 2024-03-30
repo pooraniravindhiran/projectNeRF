@@ -37,7 +37,7 @@ def eval_mipnerf(cfg, poses: torch.Tensor, hwf_list: list,
 
     # Check if there is a pretrained checkpoint that is available
     if cfg.train.checkpoint_path:
-        _, optimizer, model, _ = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model, None)
+        _, optimizer, model, _ = load_model_checkpoint(cfg, optimizer, model, None)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
 
     # Create output dir
@@ -120,11 +120,11 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         start_epoch, optimizer, model, _ = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model, None)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
     else:
-        start_epoch = 0
+        start_epoch = 1
 
     # Iterate through epochs
     cfg.result.logger.info(f"Initiating model training.")
-    for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs)):
+    for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs+1)):
 
         # Pick one random sample for training
         index = np.random.choice(train_indices) # TODO: check if it is without replacement
@@ -157,7 +157,7 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
             param_group['lr'] = new_lr
 
         # Save model checkpoint
-        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs-1):
+        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs):
             checkpoint_dict = {
                 'epoch': epoch, 
                 'model_state_dict': model.state_dict(), 

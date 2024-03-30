@@ -113,7 +113,7 @@ def compute_cumprod_exclusive(tensor: torch.Tensor):
 
     return cumprod_exclusive
 
-def perform_positional_encoding(num_encoding_func: int, device: torch.device, tensor: torch.Tensor):
+def perform_positional_encoding(tensor: torch.Tensor, num_encoding_func: int, include_input: bool):
     """
     Encodes tensor with sinusoidal components for different frequency bands based on the number of encoding functions specified.
     This helps to get a high-dimensional representation of the input, enabling better capture of high frequency variations and
@@ -130,14 +130,17 @@ def perform_positional_encoding(num_encoding_func: int, device: torch.device, te
             Else, it is of shape (x, 3 + (2*num_encoding_func*3))
 
     """
-    encoding = []
+    if include_input:
+        encoding = [tensor] # (h * w * num_samples, 3)
+    else:
+        encoding = []
 
     frequency_band = torch.linspace(
             2.0 ** 0.0,
             2.0 ** (num_encoding_func - 1),
             num_encoding_func,
             dtype=tensor.dtype,
-            device=device,
+            device=tensor.device,
     )
 
     # Iterate through each frequency and both sin/cos functions to generate the encoded output

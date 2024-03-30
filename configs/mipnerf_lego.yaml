@@ -15,7 +15,7 @@ model:
   num_fine_samples_per_ray: 128
   include_input_in_posencoding: False
   include_input_in_direncoding: False
-  num_selected_rays: 2048
+  num_selected_rays: 1024
   centercrop_epochs: 500
 
 train:

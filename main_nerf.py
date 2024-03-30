@@ -128,11 +128,11 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         start_epoch, optimizer, model_coarse, model_fine = load_model_checkpoint(cfg, optimizer, model_coarse, model_fine)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
     else:
-        start_epoch = 0
+        start_epoch = 1
 
     # Iterate through epochs
     cfg.result.logger.info(f"Initiating model training.")
-    for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs)):
+    for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs+1)):
 
         # Pick one random sample for training
         index = np.random.choice(train_indices) # TODO: check if it is without replacement
@@ -166,7 +166,7 @@ def train_nerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
             param_group['lr'] = new_lr
 
         # Save model checkpoint
-        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs-1):
+        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs):
             checkpoint_dict = {
                 'epoch': epoch, 
                 'model_coarse_state_dict': model_coarse.state_dict(), 
