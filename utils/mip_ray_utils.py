@@ -53,33 +53,6 @@ def sample_points(ray_directions: torch.Tensor, ray_origins: torch.Tensor, depth
 
 def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model, 
                                      viewdirs_batch, cfg):
-	
-    # Encode sample points using integrated positional embedding
-    encoded_sample_points = perform_integrated_positional_encoding(mu_tensor, diag_sigma_tensor, 
-                                                                   cfg.model.num_pos_encoding_func)
-    # encoded_sample_points = positional_encoding_obj(mu_tensor, diag_sigma_tensor)[0]
-    encoded_sample_points = encoded_sample_points.reshape(-1, encoded_sample_points.shape[-1])
-
-    if cfg.model.use_viewdirs:
-        ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
-        ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
-        # encoded_dirs = viewdirs_encoding_obj(ipdirs_batch.to(device))
-        encoded_dirs = perform_positional_encoding(ipdirs_batch, cfg.model.num_dir_encoding_func, 
-                                                    cfg.model.include_input_in_direncoding)
-        encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
-
-    # Batchify and call NN model on the batch
-    chunks = get_chunks(encoded_sample_points, cfg.train.chunk_size)
-    rgba_list = []
-    for chunk in chunks:
-        rgba_list.append(model(chunk.to(cfg.device)))
-    rgba_list = torch.cat(rgba_list, dim=0)
-    rgba_list = rgba_list.reshape(list(sample_points.shape[:-1]) + [rgba_list.shape[-1]])
-        
-    return rgba_list
-
-def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model, 
-                                     viewdirs_batch, cfg):
 
     # Encode sample points using integrated positional embedding
     encoded_sample_points = perform_integrated_positional_encoding(cfg.model.num_pos_encoding_func,
@@ -93,15 +66,16 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
                                                        cfg.device, ipdirs_batch)
             encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
             
-    # Batchify
-    ip_chunks = get_chunks(encoded_sample_points, cfg.train.chunk_size)
-    rgba_batch = []
-    for chunk in ip_chunks:
-        rgba_batch.append(model(chunk.to(cfg.device)))
-
-    rgba_batch = torch.cat(rgba_batch, dim=0)
-    rgba_batch = rgba_batch.reshape(list(mu_tensor.shape[:-1]) + [rgba_batch.shape[-1]])
-    return rgba_batch
+    # Call NN model on the batch
+    rgba = model(encoded_sample_points)
+    rgba = rgba.reshape(list(sample_points.shape[:-1])+4)
+    # ip_chunks = get_chunks(encoded_sample_points, cfg.train.chunk_size)
+    # rgba_batch = []
+    # for chunk in ip_chunks:
+    #     rgba_batch.append(model(chunk.to(cfg.device)))
+    # rgba_batch = torch.cat(rgba_batch, dim=0)
+    # rgba_batch = rgba_batch.reshape(list(mu_tensor.shape[:-1]) + [rgba_batch.shape[-1]])
+    return rgba
 
 def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: torch.Tensor, cfg):
     """

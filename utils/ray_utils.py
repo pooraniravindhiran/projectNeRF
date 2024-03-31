@@ -138,15 +138,18 @@ def get_radiance_field_per_chunk(sample_points, model, viewdirs_batch, cfg):
         encoded_dirs = perform_positional_encoding(ipdirs_batch, cfg.model.num_dir_encoding_func, cfg.model.include_input_in_direncoding)
         encoded_sample_points_batch = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
 
-    # Batchify and call NN model on the batch
-    chunks = get_chunks(encoded_sample_points_batch, cfg.train.chunk_size)
-    rgba_list = []
-    for chunk in chunks:
-        rgba_list.append(model(chunk.to(cfg.device)))
-    rgba_list = torch.cat(rgba_list, dim=0)
-    rgba_list = rgba_list.reshape(list(sample_points.shape[:-1]) + [rgba_list.shape[-1]])
+    # Call NN model on the batch
+    rgba = model(encoded_sample_points_batch)
+    rgba = rgba.reshape(list(sample_points.shape[:-1]) + 4)
+    
+    # chunks = get_chunks(encoded_sample_points_batch, cfg.train.chunk_size)
+    # rgba_list = []
+    # for chunk in chunks:
+    #     rgba_list.append(model(chunk.to(cfg.device)))
+    # rgba_list = torch.cat(rgba_list, dim=0)
+    # rgba_list = rgba_list.reshape(list(sample_points.shape[:-1]) + [rgba_list.shape[-1]])
         
-    return rgba_list
+    return rgba
 
 def render_image_batch_from_3dinfo(rgb_density: torch.Tensor, depth_values: torch.Tensor, cfg):
     """
