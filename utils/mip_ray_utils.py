@@ -60,15 +60,15 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
     encoded_sample_points = encoded_sample_points.reshape(-1, encoded_sample_points.shape[-1])
 
     if cfg.model.use_viewdirs:
-            ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
-            ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
-            encoded_dirs = perform_integrated_positional_encoding(cfg.model.num_dir_encoding_func, 
-                                                       cfg.device, ipdirs_batch)
-            encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
+        ipdirs_batch = viewdirs_batch[...,None,:].expand(mu_tensor.shape) # h*w,num,3
+        ipdirs_batch = ipdirs_batch.reshape(-1, 3) # h*w*num, 3
+        encoded_dirs = perform_integrated_positional_encoding(cfg.model.num_dir_encoding_func, 
+                                                   cfg.device, ipdirs_batch)
+        encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
             
     # Call NN model on the batch
     rgba = model(encoded_sample_points)
-    rgba = rgba.reshape((sample_points.shape[0], sample_points.shape[1], 4))
+    rgba = rgba.reshape((mu_tensor.shape[0], mu_tensor.shape[1], 4))
     return rgba
 
 def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: torch.Tensor, cfg):

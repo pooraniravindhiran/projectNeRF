@@ -120,10 +120,11 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         start_epoch, optimizer, model, _ = load_model_checkpoint(cfg.train.checkpoint_path, optimizer, model, None)
         cfg.result.logger.info(f"Loaded pretrained model from checkpoint path: {cfg.train.checkpoint_path}.")
     else:
-        start_epoch = 1
+        start_epoch = 0
 
     # Iterate through epochs
     cfg.result.logger.info(f"Initiating model training.")
+    training_start_time = time.time()
     for epoch in tqdm(range(start_epoch, start_epoch+cfg.train.num_epochs+1)):
 
         # Pick one random sample for training
@@ -157,7 +158,7 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
             param_group['lr'] = new_lr
 
         # Save model checkpoint
-        if (epoch%cfg.train.save_checkpoint_for_every == 0) or (epoch == start_epoch+cfg.train.num_epochs):
+        if (epoch%cfg.train.save_checkpoint_for_every == 0 and epoch != 0) or (epoch == start_epoch+cfg.train.num_epochs):
             checkpoint_dict = {
                 'epoch': epoch, 
                 'model_state_dict': model.state_dict(), 
@@ -176,7 +177,7 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         writer.add_scalar('lr', new_lr ,epoch)
 
         # Evaluate on validation data
-        if epoch % cfg.train.validate_every == 0:
+        if (epoch % cfg.train.validate_every == 0 and epoch != 0) or (epoch == start_epoch+cfg.train.num_epochs):
 
             with torch.no_grad():
                 val_target_img = val_target_img.reshape(-1, 3)
@@ -206,10 +207,16 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
                 # Add metrics to the logger
                 cfg.result.logger.info(f"Train Epoch: {epoch}\t loss: {total_loss.item()}\tpsnr: {convert_mse_to_psnr(total_loss.item())}")
                 cfg.result.logger.info(f"Val Epoch: {epoch}\t loss: {val_total_loss.item()}\tpsnr: {convert_mse_to_psnr(val_total_loss.item())}\tssim: {val_ssim}")
-
+    
+    training_end_time = time.time()
+    time_difference = training_end_time - training_start_time
+    hours = int(time_difference // 3600)
+    minutes = int((time_difference % 3600) // 60)
+    seconds = int(time_difference % 60)
     writer.flush()
     writer.close()
     cfg.result.logger.info(f"Completed model training successfully.")
+    cfg.result.logger.info("Training time : {:02d}:{:02d}:{:02d}".format(hours, minutes, seconds))
 
 def main():
 

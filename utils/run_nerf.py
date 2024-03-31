@@ -41,6 +41,7 @@ def run_nerf(height: int, width: int, focal_length: float, pose: torch.Tensor,
 
     # Get rays passing from projection center through every pixel of the image
 	ray_origins, ray_directions = get_raybundle_for_img(height, width, focal_length, pose, cfg.device)
+	
 	if cfg.model.use_viewdirs: # TODO: check benefit of this
 		view_dirs = ray_directions / ray_directions.norm(p=2, dim=-1).unsqueeze(-1)
 

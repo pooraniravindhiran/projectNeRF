@@ -51,7 +51,7 @@ def load_nerf_dataset(cfg):
         
         # Call function to create the dataset
         images, poses, hwf_list, indices_tuple, sph_test_poses = load_blender_data(DATASET_DIR, cfg.dataset.factor, num_of_test_images_per_set)
-        # print(f'Loaded lego dataset from {DATASET_DIR}.\nShape of images: {images.shape}.')
+        cfg.result.logger.info(f'Shape of training images: {images.shape}.')
         
         # Get indices for data split
         train_indices, val_indices, test_indices = indices_tuple

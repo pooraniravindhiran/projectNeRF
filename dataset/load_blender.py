@@ -74,18 +74,16 @@ def load_blender_data(basedir, factor, testskip=1):
     focal = .5 * W / np.tan(.5 * camera_angle_x)
     
     render_poses = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
+    factor = int(factor)
     
-    if factor is not None:
-        factor = int(factor)
+    if factor > 0:
         H = H//factor
         W = W//factor
         focal = focal/factor
-
+        
         imgs_resol = np.zeros((imgs.shape[0], H, W, 4))
         for i, img in enumerate(imgs):
             imgs_resol[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
         imgs = imgs_resol
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
-
-        
-    return imgs, poses, [int(H), int(W), focal], i_split, render_poses
+    return imgs.astype(np.float64), poses, [int(H), int(W), focal], i_split, render_poses
