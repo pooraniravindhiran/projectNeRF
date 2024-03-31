@@ -126,11 +126,10 @@ def get_radiance_field_per_chunk(sample_points, model, viewdirs_batch, cfg):
     Returns:
         torch.Tensor: Tensor representing the radiance field computed per chunk. Shape: (h, w, num_samples, 4).
     """
-	
     # Flatten sample points from shape (x, num_points, 3) into shape (x*num_points, 3)
     flattened_sample_points = sample_points.view(-1,3) # (h*w*num, 3)
 
-	# Encode sample points using positional embedding
+    # Encode sample points using positional embedding
     encoded_sample_points = perform_positional_encoding(flattened_sample_points, cfg.model.num_pos_encoding_func, cfg.model.include_input_in_posencoding)
     if cfg.model.use_viewdirs:
         ipdirs_batch = viewdirs_batch[...,None,:].expand(sample_points.shape) # (h*w,num,3)
@@ -140,14 +139,7 @@ def get_radiance_field_per_chunk(sample_points, model, viewdirs_batch, cfg):
 
     # Call NN model on the batch
     rgba = model(encoded_sample_points_batch)
-    rgba = rgba.reshape(list(sample_points.shape[:-1]) + 4)
-    
-    # chunks = get_chunks(encoded_sample_points_batch, cfg.train.chunk_size)
-    # rgba_list = []
-    # for chunk in chunks:
-    #     rgba_list.append(model(chunk.to(cfg.device)))
-    # rgba_list = torch.cat(rgba_list, dim=0)
-    # rgba_list = rgba_list.reshape(list(sample_points.shape[:-1]) + [rgba_list.shape[-1]])
+    rgba = rgba.reshape((sample_points.shape[0],sample_points.shape[1], 4))
         
     return rgba
 

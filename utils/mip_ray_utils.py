@@ -68,13 +68,7 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
             
     # Call NN model on the batch
     rgba = model(encoded_sample_points)
-    rgba = rgba.reshape(list(sample_points.shape[:-1])+4)
-    # ip_chunks = get_chunks(encoded_sample_points, cfg.train.chunk_size)
-    # rgba_batch = []
-    # for chunk in ip_chunks:
-    #     rgba_batch.append(model(chunk.to(cfg.device)))
-    # rgba_batch = torch.cat(rgba_batch, dim=0)
-    # rgba_batch = rgba_batch.reshape(list(mu_tensor.shape[:-1]) + [rgba_batch.shape[-1]])
+    rgba = rgba.reshape((sample_points.shape[0], sample_points.shape[1], 4))
     return rgba
 
 def render_image_batch_from_3dinfo_mip(rgb_density: torch.Tensor, depth_values: torch.Tensor, cfg):
