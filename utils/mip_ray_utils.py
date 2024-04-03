@@ -65,6 +65,14 @@ def get_radiance_field_per_chunk_mip(mu_tensor, diag_sigma_tensor, model,
         encoded_dirs = perform_integrated_positional_encoding(cfg.model.num_dir_encoding_func, 
                                                    cfg.device, ipdirs_batch)
         encoded_sample_points = torch.cat((encoded_sample_points, encoded_dirs), dim=-1)
+        
+    # Batchify
+    ip_chunks = get_chunks(encoded_sample_points, cfg.train.chunk_size)
+    rgba_batch = []
+    for chunk in ip_chunks:
+        rgba_batch.append(model(chunk.to(cfg.device)))
+
+    rgba_batch = torch.cat(rgba_batch, dim=0)
             
     # Call NN model on the batch
     rgba = model(encoded_sample_points)

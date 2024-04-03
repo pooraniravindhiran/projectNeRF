@@ -180,6 +180,7 @@ def train_mipnerf(cfg, images:torch.Tensor, poses: torch.Tensor, hwf_list: list,
         if (epoch % cfg.train.validate_every == 0 and epoch != 0) or (epoch == start_epoch+cfg.train.num_epochs):
 
             with torch.no_grad():
+                
                 val_target_img = val_target_img.reshape(-1, 3)
                 val_pose = poses[val_index].to(cfg.device)
                 rgb_val_coarse, rgb_val_fine, _ = run_mipnerf(height, width, focal_length, val_pose,
