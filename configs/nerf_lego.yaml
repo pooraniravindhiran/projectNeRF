@@ -3,7 +3,7 @@ device: "cuda"
 dataset: 
   type: "lego"
   dir: "/scratch/atiwar31/nerf_dataset/lego/"
-  factor: 0
+  factor: 8
   is_ndc_required: False # set to True only for forward facing scenes
   use_white_bkgd: False # applies only for blender data
 

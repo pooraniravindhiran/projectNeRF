@@ -30,6 +30,9 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
     if not isinstance(poses, torch.Tensor):
         poses = torch.from_numpy(poses)
     poses = poses.to(cfg.device)
+    
+    if ground_truth is not None:
+        ground_truth = ground_truth.to(cfg.device)
 
     # Define the models and the optimizer
     model_coarse = NeRF(cfg.model.num_pos_encoding_func, cfg.model.num_dir_encoding_func, cfg.model.use_viewdirs).to(cfg.device)
@@ -50,6 +53,7 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
     avg_loss = 0.0
     avg_psnr = 0.0
     avg_ssim = 0.0
+    
 
     # Initialize VideoWriter object
     if ground_truth is None:
@@ -63,6 +67,7 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
         for i in tqdm(range(poses.shape[0])):
             rgb_test_coarse, rgb_test_fine, _ = run_nerf(height, width, focal_length, poses[i],
                 near_thresh, far_thresh, model_coarse, model_fine, cfg, 0, mode='eval')
+            
             if ground_truth is not None:
                 target_image = ground_truth[i].view(-1, 3)
                 coarse_loss = torch.nn.functional.mse_loss(rgb_test_coarse, target_image)
@@ -70,12 +75,13 @@ def eval_nerf(cfg, poses: torch.Tensor, hwf_list: list,
                 total_loss = coarse_loss+fine_loss
                 avg_loss += total_loss.item()
                 avg_psnr += convert_mse_to_psnr(total_loss.item())
-                avg_ssim += compute_ssim_score(rgb_test_fine.reshape(height, width, 3).detach().cpu().numpy(), \
-                                               target_image.reshape(height, width, 3).detach().cpu().numpy())
+                avg_ssim += compute_ssim_score(cast_tensor_to_image(rgb_test_fine.reshape(height,width,3)), cast_tensor_to_image(target_image.reshape(height, width, 3)))
+            
             rgb_test_fine = rgb_test_fine.reshape(height, width, 3)
             rgb_test_fine = np.transpose(cast_tensor_to_image(rgb_test_fine), (1,2,0))
             rgb_test_fine = cv2.cvtColor(rgb_test_fine, cv2.COLOR_BGR2RGB)
-            video_writer.write(rgb_test_fine)
+            if ground_truth is None:
+                video_writer.write(rgb_test_fine)
 
             cv2.imwrite(os.path.join(cfg.result.logdir, 'inference', '{:03d}.png'.format(i)), rgb_test_fine)
         end_time = time.time()
@@ -235,7 +241,8 @@ def main():
     parser.add_argument('--mode', type=str, help="For training model, type train. For inference, type eval.")
     parser.add_argument('--logdir', type=str, help="Provide the path to save the results and logs.")
     parser.add_argument('--model_path', type=str, help="Provide the path to the model saved if any.", default=None)
-    parser.add_argument('--is_spherical', type=bool, help="Indicate if you want spherical poses or test poses for evaluation.", default=False)
+    parser.add_argument('--spherical', help="To include spherical poses or test poses for evaluation.", action='store_true')
+    parser.add_argument('--no_spherical', help="To include test poses for evaluation.", action='store_true')
     args = parser.parse_args()
 
     # Read user configurable settings from config file
@@ -296,9 +303,9 @@ def main():
     if args.mode == "train":
         train_nerf(cfg, images, poses, hwf_list, train_indices, near_thresh, far_thresh) 
     else:
-        if args.is_spherical:
+        if args.spherical:
             eval_nerf(cfg, sph_test_poses, hwf_list, near_thresh, far_thresh) 
-        else:
+        if args.no_spherical:
             test_poses = poses[test_indices]
             eval_nerf(cfg, test_poses, hwf_list, near_thresh, far_thresh, images[test_indices]) 
     
